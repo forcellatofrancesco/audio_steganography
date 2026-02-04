@@ -1,0 +1,11 @@
+[output]
+waveform = "output/output.wav"
+message = "output/out.txt"
+
+[input]
+message = "input/message.txt"
+
+[audio]
+sample_rate = 44100
+frequency = 440
+n = 1
