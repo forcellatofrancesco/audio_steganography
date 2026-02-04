@@ -4,17 +4,15 @@ import wave
 
 def phase_shift_keying(data, sample_rate=44100, frequency=440, n=1):
     # Create a waveform where each byte's symbol is repeated n times
-    samples_per_symbol = sample_rate // 8
+    samples_per_symbol = sample_rate // 8  # 1/8 of a second = 1 byte
     t_symbol = np.arange(samples_per_symbol) / sample_rate
     waveform_chunks = []
 
     for byte in data:
         # Create a phase shift for each byte (symbol)
         phase = (byte / 255) * 2 * np.pi
-        print(phase, end=";")
         symbol = np.sin(2 * np.pi * frequency * t_symbol + phase)
         waveform_chunks.append(np.tile(symbol, n))
-    print("")
 
     return np.concatenate(waveform_chunks) if waveform_chunks else np.array([])
 
@@ -53,15 +51,3 @@ def save_waveform_to_file(waveform, filename, sample_rate=44100):
         wf.setsampwidth(2)  # 16 bits
         wf.setframerate(sample_rate)
         wf.writeframes(waveform.tobytes())
-
-
-def main():
-    input_string = "hello wooooorld"
-    byte_data = input_string.encode("utf-8")
-    waveform = phase_shift_keying(byte_data)
-    save_waveform_to_file(waveform, "output.wav")
-    print("Audio file created: output.wav")
-
-
-if __name__ == "__main__":
-    main()
