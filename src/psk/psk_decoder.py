@@ -1,6 +1,8 @@
 import numpy as np
 import wave
 
+from psk.psk_encoder import phase_shift_keying
+
 
 def load_waveform_from_file(filename):
     """
@@ -98,3 +100,37 @@ def decode_phase_shift_keying(
         byte_values.append(byte_value)
 
     return bytes(byte_values)
+
+
+def find_sync_offset(waveform, sync_waveform):
+    if waveform.size == 0 or sync_waveform.size == 0:
+        return None
+
+    if waveform.size < sync_waveform.size:
+        return None
+
+    sync_norm = np.linalg.norm(sync_waveform)
+    if sync_norm == 0:
+        return None
+
+    # Normalize sync waveform to avoid amplitude bias during correlation.
+    sync_unit = sync_waveform / sync_norm
+    correlations = np.correlate(waveform, sync_unit, mode="valid")
+    if correlations.size == 0:
+        return None
+
+    return int(np.argmax(correlations))
+
+
+def align_to_start_sequence(waveform, start_sequence, sample_rate, frequency, n):
+    sync_waveform = phase_shift_keying(
+        start_sequence.encode("utf-8"),
+        sample_rate=sample_rate,
+        frequency=frequency,
+        n=n,
+    )
+    offset = find_sync_offset(waveform, sync_waveform)
+    if offset is None:
+        return waveform
+
+    return waveform[offset:]
