@@ -16,7 +16,7 @@ def main():
             config["sync"]["end"],
             "r",
         ) as end_sequence_file:
-            message = "\n".join(input.readlines())
+            message = "".join(input.readlines())
             start_sequence = start_sequence_file.readline().rstrip("\n")
             end_sequence = end_sequence_file.readline().rstrip("\n")
 
