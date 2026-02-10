@@ -52,7 +52,8 @@ def save_waveform_to_file(waveform, filename, sample_rate=44100, volume=1.0):
         IOError: If the file cannot be written to the specified path.
 
     Notes:
-        - The waveform is normalized, then scaled by volume.
+        - The waveform is only normalized if it exceeds the [-1, 1] range.
+        - The volume is applied after any normalization.
         - The output is mono (single channel).
         - The sample width is fixed at 2 bytes (16 bits).
 
@@ -70,8 +71,10 @@ def save_waveform_to_file(waveform, filename, sample_rate=44100, volume=1.0):
     peak = np.max(np.abs(waveform))
     if peak == 0:
         scaled = waveform
-    else:
+    elif peak > 1.0:
         scaled = (waveform / peak) * volume
+    else:
+        scaled = waveform * volume
 
     # Normalize to 16-bit range
     normalization = int(2**16 / 2 - 1)

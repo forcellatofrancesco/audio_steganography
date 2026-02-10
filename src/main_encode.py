@@ -33,6 +33,7 @@ def main():
             save_waveform_to_file(
                 waveform,
                 config["output"]["waveform"],
+                sample_rate=config["audio"]["sample_rate"],
                 volume=config["audio"]["volume"],
             )
             print("Audio file created: output.wav")

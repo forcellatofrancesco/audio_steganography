@@ -7,9 +7,9 @@ message = "input/message.txt"
 
 [audio]
 sample_rate = 44100
-frequency = 200
-cycles_per_symbol = 1
-volume = 0.1
+frequency = 20
+cycles_per_symbol = 2
+volume = 1.0
 
 [sync]
 start = "input/init_sequence.txt"

@@ -26,13 +26,13 @@ def main():
                 start_sequence,
                 sample_rate=config["audio"]["sample_rate"],
                 frequency=config["audio"]["frequency"],
-                n=config["audio"]["n"],
+                cycles_per_symbol=config["audio"]["cycles_per_symbol"],
             )
             recovered_data = decode_phase_shift_keying(
                 aligned_waveform,
                 sample_rate=config["audio"]["sample_rate"],
                 frequency=config["audio"]["frequency"],
-                n=config["audio"]["n"],
+                cycles_per_symbol=config["audio"]["cycles_per_symbol"],
             ).decode("utf-8", errors="replace")
             start_index = recovered_data.find(start_sequence)
             if start_index != -1:
