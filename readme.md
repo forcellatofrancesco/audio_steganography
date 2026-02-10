@@ -1,4 +1,4 @@
-# audio_encoding
+# audio_stenography
 This project is a POC that aims to prove the feasibility of encoding a message in the form of audio using Phase Shift Keying.
 
 ## Installation

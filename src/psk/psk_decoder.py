@@ -1,7 +1,7 @@
 import numpy as np
 import wave
 
-from psk.psk_encoder import phase_shift_keying
+from psk.psk_encoder import differential_binary_phase_shift_keying
 
 
 def load_waveform_from_file(filename):
@@ -123,11 +123,11 @@ def find_sync_offset(waveform, sync_waveform):
 
 
 def align_to_start_sequence(waveform, start_sequence, sample_rate, frequency, n):
-    sync_waveform = phase_shift_keying(
+    sync_waveform = differential_binary_phase_shift_keying(
         start_sequence.encode("utf-8"),
         sample_rate=sample_rate,
         frequency=frequency,
-        n=n,
+        phases=n,
     )
     offset = find_sync_offset(waveform, sync_waveform)
     if offset is None:
