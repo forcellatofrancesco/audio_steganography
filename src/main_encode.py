@@ -1,5 +1,6 @@
 from psk.psk_encoder import (
     differential_binary_phase_shift_keying,
+    differential_binary_phase_shift_keying_deprecated,
     save_waveform_to_file,
 )
 import tomllib
