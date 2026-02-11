@@ -11,6 +11,18 @@ def bit_to_phase_wave(
     return symbol
 
 
+def encode_dbpsk(data: bytes, previous_bit: int = 1) -> list[int]:
+    res = []
+    res.append(previous_bit)
+    for byte in data:
+        for bit_index in range(7, -1, -1):
+            bit = (byte >> bit_index) & 1
+            xored = previous_bit ^ bit
+            previous_bit = xored
+            res.append(xored)
+    return res
+
+
 def differential_binary_phase_shift_keying(
     data: bytes, sample_rate=44100, frequency=440, cycles_per_symbol=1.0
 ):
@@ -20,35 +32,18 @@ def differential_binary_phase_shift_keying(
         raise ValueError("cycles_per_symbol must be positive.")
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     waveform_chunks = []
-    previous_bit = 1
-    waveform_chunks.append(
-        bit_to_phase_wave(
-            previous_bit,
+    encoded_bits = encode_dbpsk(data)
+    sample_offset = 0
+    for bit in encoded_bits:
+        symbol = bit_to_phase_wave(
+            bit,
             frequency,
             samples_per_symbol,
-            0,
+            sample_offset,
             sample_rate,
         )
-    )
-    sample_offset = samples_per_symbol
-    original_str = ""
-    xored_str = "1"
-    for byte in data:
-        for bit_index in range(7, -1, -1):
-            bit = (byte >> bit_index) & 1
-            xored = previous_bit ^ bit
-            original_str += str(bit)
-            xored_str += str(xored)
-            previous_bit = xored
-            symbol = bit_to_phase_wave(
-                xored,
-                frequency,
-                samples_per_symbol,
-                sample_offset,
-                sample_rate,
-            )
-            waveform_chunks.append(symbol)
-            sample_offset += samples_per_symbol
+        waveform_chunks.append(symbol)
+        sample_offset += samples_per_symbol
     return np.concatenate(waveform_chunks) if waveform_chunks else np.array([])
 
 

@@ -1,7 +1,7 @@
 import numpy as np
 import wave
 
-from .psk_encoder import differential_binary_phase_shift_keying
+from .psk_encoder import differential_binary_phase_shift_keying, encode_dbpsk
 
 
 def load_waveform_from_file(filename):
@@ -58,7 +58,69 @@ def _symbol_phase(waveform, start, samples_per_symbol, sample_rate, frequency):
     return np.arctan2(q, i)
 
 
+def decode(bits: list[int]) -> bytes:
+    previous_bit = bits[0]
+    xored_bits = []
+    for bit in bits[1:]:
+        xored = bit ^ previous_bit
+        previous_bit = bit
+        xored_bits.append(xored)
+    byte_values = []
+    current = 0
+    for idx, bit in enumerate(xored_bits):
+        current = (current << 1) | bit
+        if (idx + 1) % 8 == 0:
+            byte_values.append(current)
+            current = 0
+
+    return bytes(byte_values)
+
+
+def search_start(bits: list[int], start_sequence: str):
+    start: list[int] = encode_dbpsk(start_sequence.encode("utf-8"))
+    # Create sliding windows of length len(b)
+    windows = np.lib.stride_tricks.sliding_window_view(bits, len(start))
+
+    # Compare each window with b
+    matches = np.all(windows == start, axis=1)
+
+    # Get first occurrence
+    indices = np.where(matches)[0]
+    if len(indices) == 0:
+        return None
+    return indices[0]
+
+
 def decode_phase_shift_keying(
+    waveform,
+    start_sequence: str,
+    sample_rate=44100,
+    frequency=440,
+    cycles_per_symbol=1.0,
+):
+    if frequency <= 0:
+        raise ValueError("frequency must be positive.")
+    if cycles_per_symbol <= 0:
+        raise ValueError("cycles_per_symbol must be positive.")
+
+    samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
+    if waveform.size < samples_per_symbol:
+        return b""
+
+    bits = []
+    for start in range(0, waveform.size - samples_per_symbol + 1, samples_per_symbol):
+        phase = _symbol_phase(
+            waveform, start, samples_per_symbol, sample_rate, frequency
+        )
+        if phase is None:
+            break
+        bit = 0 if np.cos(phase) >= 0 else 1
+        bits.append(bit)
+    start_index = search_start(bits, start_sequence)
+    return decode(bits[start_index:])
+
+
+def decode_phase_shift_keying_not_aligned(
     waveform, sample_rate=44100, frequency=440, cycles_per_symbol=1.0
 ):
     if frequency <= 0:

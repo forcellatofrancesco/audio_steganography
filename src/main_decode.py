@@ -21,15 +21,9 @@ def main():
             waveform, sample_rate = load_waveform_from_file(
                 config["output"]["waveform"]
             )
-            aligned_waveform = align_to_start_sequence(
+            recovered_data = decode_phase_shift_keying(
                 waveform,
                 start_sequence,
-                sample_rate=config["audio"]["sample_rate"],
-                frequency=config["audio"]["frequency"],
-                cycles_per_symbol=config["audio"]["cycles_per_symbol"],
-            )
-            recovered_data = decode_phase_shift_keying(
-                aligned_waveform,
                 sample_rate=config["audio"]["sample_rate"],
                 frequency=config["audio"]["frequency"],
                 cycles_per_symbol=config["audio"]["cycles_per_symbol"],
