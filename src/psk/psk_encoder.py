@@ -3,7 +3,11 @@ import wave
 
 
 def bit_to_phase_wave(
-    bit: int, frequency, samples_per_symbol, sample_offset, sample_rate
+    bit: int,
+    frequency,
+    samples_per_symbol,
+    sample_offset,
+    sample_rate,
 ):
     phase = np.pi * bit  # phase = 0 when xored = 0, phase = pi when xored = 1
     t_symbol = (np.arange(samples_per_symbol) + sample_offset) / sample_rate
@@ -11,20 +15,45 @@ def bit_to_phase_wave(
     return symbol
 
 
-def encode_dbpsk(data: bytes, previous_bit: int = 1) -> list[int]:
-    res = []
-    res.append(previous_bit)
+def bytes_to_bits(data: bytes) -> list[int]:
+    bits = []
     for byte in data:
         for bit_index in range(7, -1, -1):
             bit = (byte >> bit_index) & 1
-            xored = previous_bit ^ bit
-            previous_bit = xored
-            res.append(xored)
+            bits.append(bit)
+    return bits
+
+
+def encode_dbpsk_list(bits: list[int], previous_bit: int = 1) -> list[int]:
+    res = []
+    res.append(previous_bit)
+    prev: int = previous_bit
+    for bit in bits:
+        xored = prev ^ bit
+        res.append(xored)
+        prev = xored
     return res
 
 
+def encode_dbpsk(data: bytes, preamble: list[int], previous_bit: int = 1) -> list[int]:
+    bits: list[int] = []
+    # Add preamble
+    bits += preamble
+    # Convert bytes to list of bits
+    bits += bytes_to_bits(data)
+    # Add preamble as ending sequence
+    bits += preamble
+    # Encode in differential
+    encoded: list[int] = encode_dbpsk_list(bits, previous_bit)
+    return encoded
+
+
 def differential_binary_phase_shift_keying(
-    data: bytes, sample_rate=44100, frequency=440, cycles_per_symbol=1.0
+    data: bytes,
+    preamble: list[int],
+    sample_rate=44100,
+    frequency=440,
+    cycles_per_symbol=1.0,
 ):
     if frequency <= 0:
         raise ValueError("frequency must be positive.")
@@ -32,7 +61,7 @@ def differential_binary_phase_shift_keying(
         raise ValueError("cycles_per_symbol must be positive.")
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     waveform_chunks = []
-    encoded_bits = encode_dbpsk(data)
+    encoded_bits = encode_dbpsk(data, preamble)
     sample_offset = 0
     for bit in encoded_bits:
         symbol = bit_to_phase_wave(

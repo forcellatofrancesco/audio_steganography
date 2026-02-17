@@ -12,5 +12,7 @@ cycles_per_symbol = 2
 volume = 1.0
 
 [sync]
-start = "input/init_sequence.txt"
-end = "input/end_sequence.txt"
+preamble = [0, 0, 0, 1, 1, 0, 1] # Barker sequence [1, 1, 1, -1, -1, 1, -1]
+
+[debug]
+out_txt = true

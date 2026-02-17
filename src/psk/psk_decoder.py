@@ -1,7 +1,10 @@
 import numpy as np
 import wave
 
-from .psk_encoder import differential_binary_phase_shift_keying, encode_dbpsk
+from .psk_encoder import (
+    bit_to_phase_wave,
+    encode_dbpsk_list,
+)
 
 
 def load_waveform_from_file(filename):
@@ -58,140 +61,17 @@ def _symbol_phase(waveform, start, samples_per_symbol, sample_rate, frequency):
     return np.arctan2(q, i)
 
 
-def decode(bits: list[int]) -> bytes:
+def decode(bits: list[int]) -> list[int]:
     previous_bit = bits[0]
     xored_bits = []
     for bit in bits[1:]:
         xored = bit ^ previous_bit
         previous_bit = bit
         xored_bits.append(xored)
-    byte_values = []
-    current = 0
-    for idx, bit in enumerate(xored_bits):
-        current = (current << 1) | bit
-        if (idx + 1) % 8 == 0:
-            byte_values.append(current)
-            current = 0
-
-    return bytes(byte_values)
+    return xored_bits
 
 
-def search_start(bits: list[int], start_sequence: str):
-    start: list[int] = encode_dbpsk(start_sequence.encode("utf-8"))
-    # Create sliding windows of length len(b)
-    windows = np.lib.stride_tricks.sliding_window_view(bits, len(start))
-
-    # Compare each window with b
-    matches = np.all(windows == start, axis=1)
-
-    # Get first occurrence
-    indices = np.where(matches)[0]
-    if len(indices) == 0:
-        return None
-    return indices[0]
-
-
-def decode_phase_shift_keying(
-    waveform,
-    start_sequence: str,
-    sample_rate=44100,
-    frequency=440,
-    cycles_per_symbol=1.0,
-):
-    if frequency <= 0:
-        raise ValueError("frequency must be positive.")
-    if cycles_per_symbol <= 0:
-        raise ValueError("cycles_per_symbol must be positive.")
-
-    samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
-    if waveform.size < samples_per_symbol:
-        return b""
-
-    bits = []
-    for start in range(0, waveform.size - samples_per_symbol + 1, samples_per_symbol):
-        phase = _symbol_phase(
-            waveform, start, samples_per_symbol, sample_rate, frequency
-        )
-        if phase is None:
-            break
-        bit = 0 if np.cos(phase) >= 0 else 1
-        bits.append(bit)
-    start_index = search_start(bits, start_sequence)
-    return decode(bits[start_index:])
-
-
-def decode_phase_shift_keying_not_aligned(
-    waveform, sample_rate=44100, frequency=440, cycles_per_symbol=1.0
-):
-    if frequency <= 0:
-        raise ValueError("frequency must be positive.")
-    if cycles_per_symbol <= 0:
-        raise ValueError("cycles_per_symbol must be positive.")
-
-    samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
-    if waveform.size < samples_per_symbol:
-        return b""
-
-    bits = []
-    for start in range(0, waveform.size - samples_per_symbol + 1, samples_per_symbol):
-        phase = _symbol_phase(
-            waveform, start, samples_per_symbol, sample_rate, frequency
-        )
-        if phase is None:
-            break
-        bit = 0 if np.cos(phase) >= 0 else 1
-        bits.append(bit)
-    previous_bit = bits[0]
-    xored_bits = []
-    for bit in bits[1:]:
-        xored = bit ^ previous_bit
-        previous_bit = bit
-        xored_bits.append(xored)
-    byte_values = []
-    current = 0
-    for idx, bit in enumerate(xored_bits):
-        current = (current << 1) | bit
-        if (idx + 1) % 8 == 0:
-            byte_values.append(current)
-            current = 0
-
-    return bytes(byte_values)
-
-
-def decode_phase_shift_keying_deprecated(
-    waveform, sample_rate=44100, frequency=440, cycles_per_symbol=1.0
-):
-    """
-    Decode a DBPSK waveform into bytes.
-
-    Args:
-            waveform (np.ndarray): Audio samples.
-            sample_rate (int): Sample rate in Hz.
-            frequency (float): Carrier frequency in Hz.
-            cycles_per_symbol (float): Carrier cycles per symbol.
-
-    Returns:
-            bytes: Decoded byte stream.
-    """
-    if frequency <= 0:
-        raise ValueError("frequency must be positive.")
-    if cycles_per_symbol <= 0:
-        raise ValueError("cycles_per_symbol must be positive.")
-
-    samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
-    if waveform.size < samples_per_symbol:
-        return b""
-
-    bits = []
-    for start in range(0, waveform.size - samples_per_symbol + 1, samples_per_symbol):
-        phase = _symbol_phase(
-            waveform, start, samples_per_symbol, sample_rate, frequency
-        )
-        if phase is None:
-            break
-        bit = 0 if np.cos(phase) >= 0 else 1
-        bits.append(bit)
-
+def bits_to_bytes(bits: list[int]) -> bytes:
     byte_values = []
     current = 0
     for idx, bit in enumerate(bits):
@@ -199,47 +79,101 @@ def decode_phase_shift_keying_deprecated(
         if (idx + 1) % 8 == 0:
             byte_values.append(current)
             current = 0
-
     return bytes(byte_values)
 
 
-def align_to_start_sequence(
+def detect_preamble(
     waveform,
-    start_sequence,
+    preamble,
     sample_rate=44100,
     frequency=440,
     cycles_per_symbol=1.0,
 ):
     """
-    Align waveform to the start sequence by matched filtering.
+    Find the sample offset of a DBPSK preamble using matched filtering.
 
     Args:
             waveform (np.ndarray): Input audio samples.
-            start_sequence (str): Text sequence used as preamble.
+            preamble (list[int]): Preamble bits before differential encoding.
             sample_rate (int): Sample rate in Hz.
             frequency (float): Carrier frequency in Hz.
             cycles_per_symbol (float): Carrier cycles per symbol.
 
     Returns:
-            np.ndarray: Waveform starting at the best match.
+            int: Sample index of the best preamble match.
     """
     if waveform.size == 0:
-        return waveform
+        return 0
 
-    expected = differential_binary_phase_shift_keying(
-        start_sequence.encode("utf-8"),
-        sample_rate=sample_rate,
-        frequency=frequency,
-        cycles_per_symbol=cycles_per_symbol,
+    samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
+    encoded_preamble = encode_dbpsk_list(preamble)
+
+    expected_chunks = []
+    sample_offset = 0
+    for bit in encoded_preamble:
+        expected_chunks.append(
+            bit_to_phase_wave(
+                bit,
+                frequency,
+                samples_per_symbol,
+                sample_offset,
+                sample_rate,
+            )
+        )
+        sample_offset += samples_per_symbol
+
+    expected = (
+        np.concatenate(expected_chunks).astype(np.float32)
+        if expected_chunks
+        else np.array([], dtype=np.float32)
     )
     if expected.size == 0 or waveform.size < expected.size:
-        return waveform
+        return 0
 
     expected = expected - np.mean(expected)
     candidate = waveform - np.mean(waveform)
     correlation = np.correlate(candidate, expected, mode="valid")
     if correlation.size == 0:
-        return waveform
+        return 0
 
-    best_offset = int(np.argmax(np.abs(correlation)))
-    return waveform[best_offset:]
+    return int(np.argmax(np.abs(correlation)))
+
+
+def decode_phase_shift_keying(
+    waveform,
+    preamble: list[int],
+    sample_rate=44100,
+    frequency=440,
+    cycles_per_symbol=1.0,
+):
+    if frequency <= 0:
+        raise ValueError("frequency must be positive.")
+    if cycles_per_symbol <= 0:
+        raise ValueError("cycles_per_symbol must be positive.")
+    start_index = detect_preamble(
+        waveform,
+        preamble,
+        sample_rate=sample_rate,
+        frequency=frequency,
+        cycles_per_symbol=cycles_per_symbol,
+    )
+    trimmed_waveform = waveform[start_index:]
+
+    samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
+    if trimmed_waveform.size < samples_per_symbol:
+        return b""
+
+    bits = []
+    for start in range(
+        0, trimmed_waveform.size - samples_per_symbol + 1, samples_per_symbol
+    ):
+        phase = _symbol_phase(
+            trimmed_waveform, start, samples_per_symbol, sample_rate, frequency
+        )
+        if phase is None:
+            break
+        bit = 0 if np.cos(phase) >= 0 else 1
+        bits.append(bit)
+    decoded_bits = decode(bits)
+    # Strip preamble
+    return bits_to_bytes(decoded_bits[len(preamble) :])
