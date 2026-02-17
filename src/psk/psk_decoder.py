@@ -1,52 +1,11 @@
 import numpy as np
-import wave
+
+from psk.utils import bits_to_bytes
 
 from .psk_encoder import (
     bit_to_phase_wave,
     encode_dbpsk_list,
 )
-
-
-def load_waveform_from_file(filename):
-    """
-    Load a WAV file and return normalized mono waveform and sample rate.
-
-    Args:
-            filename (str): Path to the WAV file.
-
-    Returns:
-            tuple[np.ndarray, int]: (waveform, sample_rate)
-
-    Raises:
-            ValueError: If the WAV format is unsupported.
-            IOError: If the file cannot be read.
-    """
-    with wave.open(filename, "rb") as wf:
-        sample_rate = wf.getframerate()
-        channels = wf.getnchannels()
-        sample_width = wf.getsampwidth()
-        frame_count = wf.getnframes()
-        raw = wf.readframes(frame_count)
-
-    if sample_width == 1:
-        dtype = np.uint8
-        data = np.frombuffer(raw, dtype=dtype).astype(np.float32)
-        data = (data - 128.0) / 128.0
-    elif sample_width == 2:
-        dtype = np.int16
-        data = np.frombuffer(raw, dtype=dtype).astype(np.float32)
-        data = data / 32768.0
-    elif sample_width == 4:
-        dtype = np.int32
-        data = np.frombuffer(raw, dtype=dtype).astype(np.float32)
-        data = data / 2147483648.0
-    else:
-        raise ValueError("Unsupported sample width: %s" % sample_width)
-
-    if channels > 1:
-        data = data.reshape(-1, channels).mean(axis=1)
-
-    return data, sample_rate
 
 
 def _symbol_phase(waveform, start, samples_per_symbol, sample_rate, frequency):
@@ -70,25 +29,13 @@ def decode(bits: list[int]) -> list[int]:
         xored_bits.append(xored)
     return xored_bits
 
-
-def bits_to_bytes(bits: list[int]) -> bytes:
-    byte_values = []
-    current = 0
-    for idx, bit in enumerate(bits):
-        current = (current << 1) | bit
-        if (idx + 1) % 8 == 0:
-            byte_values.append(current)
-            current = 0
-    return bytes(byte_values)
-
-
 def detect_preamble(
     waveform,
-    preamble,
+    preamble: list[int],
     sample_rate=44100,
     frequency=440,
     cycles_per_symbol=1.0,
-):
+) -> int:
     """
     Find the sample offset of a DBPSK preamble using matched filtering.
 

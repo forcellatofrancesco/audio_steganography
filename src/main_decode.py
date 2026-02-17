@@ -1,8 +1,7 @@
-from psk.psk_decoder import (
-    decode_phase_shift_keying,
-    load_waveform_from_file,
-)
+from psk.psk_decoder import decode_phase_shift_keying
 import tomllib
+
+from psk.utils import load_waveform_from_file
 
 
 def main():
