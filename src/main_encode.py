@@ -26,7 +26,7 @@ def main():
                 sample_rate=config["audio"]["sample_rate"],
                 volume=config["audio"]["volume"],
             )
-            print("Audio file created: output.wav")
+            print(f"Audio file created: {config['output']['waveform']}")
 
 
 if __name__ == "__main__":

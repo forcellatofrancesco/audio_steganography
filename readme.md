@@ -4,6 +4,7 @@ This project is a POC that aims to prove the feasibility of encoding a message i
 ## Installation
 Create a Python virtual environment called `.venv` (as the `encode_decode.sh` script uses this name).
 Install all the packages in `requirements.txt`.
+If you use non-WAV audio files (for example `.ogg`), install `ffmpeg` so the project can convert files to a waveform-compatible format automatically.
 
 ## Configuration
 The configuration can be found in the `config.toml` file.

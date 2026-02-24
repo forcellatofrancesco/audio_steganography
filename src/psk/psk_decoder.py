@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.signal import butter, hilbert, sosfilt, sosfiltfilt
 
 from psk.utils import bits_to_bytes
 
@@ -8,16 +9,48 @@ from .psk_encoder import (
 )
 
 
-def _symbol_phase(waveform, start, samples_per_symbol, sample_rate, frequency):
-    segment = waveform[start : start + samples_per_symbol]
+def _compute_band_edges(frequency, sample_rate, cycles_per_symbol):
+    nyquist = sample_rate / 2.0
+    symbol_rate = frequency / cycles_per_symbol
+    bandwidth = max(symbol_rate * 2.0, frequency * 0.2)
+    low = max(1.0, frequency - bandwidth / 2.0)
+    high = min(nyquist * 0.98, frequency + bandwidth / 2.0)
+    if low >= high:
+        high = min(nyquist * 0.98, frequency * 1.1)
+        low = max(1.0, frequency * 0.9)
+    return low, high
+
+
+def _prepare_analytic_signal(
+    waveform,
+    sample_rate,
+    frequency,
+    cycles_per_symbol,
+    filter_order=6,
+):
+    if waveform.size == 0:
+        return np.asarray(waveform, dtype=np.complex64)
+
+    low, high = _compute_band_edges(frequency, sample_rate, cycles_per_symbol)
+    sos = butter(
+        filter_order, [low, high], btype="bandpass", fs=sample_rate, output="sos"
+    )
+    waveform_f64 = waveform.astype(np.float64)
+    try:
+        filtered = sosfiltfilt(sos, waveform_f64)
+    except ValueError:
+        filtered = sosfilt(sos, waveform_f64)
+    return np.asarray(hilbert(filtered), dtype=np.complex128)
+
+
+def _symbol_phase(analytic_waveform, start, samples_per_symbol, sample_rate, frequency):
+    segment = analytic_waveform[start : start + samples_per_symbol]
     if segment.size < samples_per_symbol:
         return None
+
     t = (np.arange(samples_per_symbol) + start) / sample_rate
-    sin_ref = np.sin(2 * np.pi * frequency * t)
-    cos_ref = np.cos(2 * np.pi * frequency * t)
-    i = np.dot(segment, sin_ref)
-    q = np.dot(segment, cos_ref)
-    return np.arctan2(q, i)
+    baseband = segment * np.exp(-1j * 2 * np.pi * frequency * t)
+    return np.angle(np.mean(baseband))
 
 
 def decode(bits: list[int]) -> list[int]:
@@ -28,6 +61,7 @@ def decode(bits: list[int]) -> list[int]:
         previous_bit = bit
         xored_bits.append(xored)
     return xored_bits
+
 
 def detect_preamble(
     waveform,
@@ -77,8 +111,20 @@ def detect_preamble(
     if expected.size == 0 or waveform.size < expected.size:
         return 0
 
+    filtered_waveform = np.asarray(
+        np.real(
+            _prepare_analytic_signal(
+                waveform,
+                sample_rate,
+                frequency,
+                cycles_per_symbol,
+            )
+        ),
+        dtype=np.float64,
+    )
+
     expected = expected - np.mean(expected)
-    candidate = waveform - np.mean(waveform)
+    candidate = filtered_waveform - np.mean(filtered_waveform)
     correlation = np.correlate(candidate, expected, mode="valid")
     if correlation.size == 0:
         return 0
@@ -97,6 +143,15 @@ def decode_phase_shift_keying(
         raise ValueError("frequency must be positive.")
     if cycles_per_symbol <= 0:
         raise ValueError("cycles_per_symbol must be positive.")
+    analytic_waveform = np.asarray(
+        _prepare_analytic_signal(
+            waveform,
+            sample_rate,
+            frequency,
+            cycles_per_symbol,
+        ),
+        dtype=np.complex128,
+    )
     start_index = detect_preamble(
         waveform,
         preamble,
@@ -104,13 +159,13 @@ def decode_phase_shift_keying(
         frequency=frequency,
         cycles_per_symbol=cycles_per_symbol,
     )
-    trimmed_waveform = waveform[start_index:]
+    trimmed_waveform = analytic_waveform[start_index:]
 
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     if trimmed_waveform.size < samples_per_symbol:
         return b""
 
-    bits = []
+    symbol_phases = []
     for start in range(
         0, trimmed_waveform.size - samples_per_symbol + 1, samples_per_symbol
     ):
@@ -119,8 +174,24 @@ def decode_phase_shift_keying(
         )
         if phase is None:
             break
-        bit = 0 if np.cos(phase) >= 0 else 1
-        bits.append(bit)
-    decoded_bits = decode(bits)
-    # Strip preamble
-    return bits_to_bytes(decoded_bits[len(preamble) :])
+        symbol_phases.append(phase)
+
+    if len(symbol_phases) < 2:
+        return b""
+
+    decoded_bits = []
+    previous_phase = symbol_phases[0]
+    for phase in symbol_phases[1:]:
+        phase_delta = np.angle(np.exp(1j * (phase - previous_phase)))
+        decoded_bits.append(0 if np.cos(phase_delta) >= 0 else 1)
+        previous_phase = phase
+
+    # Strip leading/trailing preamble
+    payload_bits = decoded_bits[len(preamble) :]
+    if (
+        len(payload_bits) >= len(preamble)
+        and payload_bits[-len(preamble) :] == preamble
+    ):
+        payload_bits = payload_bits[: -len(preamble)]
+
+    return bits_to_bytes(payload_bits)

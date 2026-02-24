@@ -1,5 +1,6 @@
 [output]
-waveform = "output/output.wav"
+# waveform = "output/output.wav"
+waveform = "output/out.ogg"
 message = "output/out.txt"
 
 [input]
@@ -9,7 +10,7 @@ message = "input/message.txt"
 sample_rate = 44100
 frequency = 200
 cycles_per_symbol = 2
-volume = 1.0
+volume = 0.2
 
 [sync]
 preamble = [0, 0, 0, 1, 1, 0, 1] # Barker sequence [1, 1, 1, -1, -1, 1, -1]
