@@ -53,22 +53,13 @@ def _symbol_phase(analytic_waveform, start, samples_per_symbol, sample_rate, fre
     return np.angle(np.mean(baseband))
 
 
-def decode(bits: list[int]) -> list[int]:
-    previous_bit = bits[0]
-    xored_bits = []
-    for bit in bits[1:]:
-        xored = bit ^ previous_bit
-        previous_bit = bit
-        xored_bits.append(xored)
-    return xored_bits
-
-
 def detect_preamble(
     waveform,
     preamble: list[int],
     sample_rate=44100,
     frequency=440,
     cycles_per_symbol=1.0,
+    algorithm: str = "dbpsk",
 ) -> int:
     """
     Find the sample offset of a DBPSK preamble using matched filtering.
@@ -87,7 +78,12 @@ def detect_preamble(
         return 0
 
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
-    encoded_preamble = encode_dbpsk_list(preamble)
+    if algorithm == "bpsk":
+        encoded_preamble = preamble
+    elif algorithm == "dbpsk":
+        encoded_preamble = encode_dbpsk_list(preamble)
+    else:
+        raise ValueError(algorithm, "algorithm not recognized")
 
     expected_chunks = []
     sample_offset = 0
@@ -132,17 +128,21 @@ def detect_preamble(
     return int(np.argmax(np.abs(correlation)))
 
 
-def decode_phase_shift_keying(
+def decode_from_audio(
     waveform,
     preamble: list[int],
-    sample_rate=44100,
-    frequency=440,
-    cycles_per_symbol=1.0,
+    sample_rate: int,
+    frequency: int,
+    cycles_per_symbol: float,
+    algorithm: str,
 ):
     if frequency <= 0:
         raise ValueError("frequency must be positive.")
     if cycles_per_symbol <= 0:
         raise ValueError("cycles_per_symbol must be positive.")
+    if algorithm not in {"bpsk", "dbpsk"}:
+        raise ValueError(algorithm, "algorithm not recognized")
+
     analytic_waveform = np.asarray(
         _prepare_analytic_signal(
             waveform,
@@ -158,6 +158,7 @@ def decode_phase_shift_keying(
         sample_rate=sample_rate,
         frequency=frequency,
         cycles_per_symbol=cycles_per_symbol,
+        algorithm=algorithm,
     )
     trimmed_waveform = analytic_waveform[start_index:]
 
@@ -165,26 +166,64 @@ def decode_phase_shift_keying(
     if trimmed_waveform.size < samples_per_symbol:
         return b""
 
-    symbol_phases = []
+    symbol_values = []
     for start in range(
         0, trimmed_waveform.size - samples_per_symbol + 1, samples_per_symbol
     ):
-        phase = _symbol_phase(
-            trimmed_waveform, start, samples_per_symbol, sample_rate, frequency
-        )
-        if phase is None:
+        segment = trimmed_waveform[start : start + samples_per_symbol]
+        if segment.size < samples_per_symbol:
             break
-        symbol_phases.append(phase)
+        t = (np.arange(samples_per_symbol) + start) / sample_rate
+        baseband = segment * np.exp(-1j * 2 * np.pi * frequency * t)
+        symbol_values.append(np.mean(baseband))
 
-    if len(symbol_phases) < 2:
+    if len(symbol_values) < 2:
         return b""
 
     decoded_bits = []
-    previous_phase = symbol_phases[0]
-    for phase in symbol_phases[1:]:
-        phase_delta = np.angle(np.exp(1j * (phase - previous_phase)))
-        decoded_bits.append(0 if np.cos(phase_delta) >= 0 else 1)
-        previous_phase = phase
+    if algorithm == "dbpsk":
+        previous_phase = np.angle(symbol_values[0])
+        for symbol_value in symbol_values[1:]:
+            phase = np.angle(symbol_value)
+            phase_delta = np.angle(np.exp(1j * (phase - previous_phase)))
+            decoded_bits.append(0 if np.cos(phase_delta) >= 0 else 1)
+            previous_phase = phase
+    elif algorithm == "bpsk":
+        if len(symbol_values) < len(preamble):
+            return b""
+
+        eps = 1e-12
+        normalized_symbols = [value / (np.abs(value) + eps) for value in symbol_values]
+
+        preamble_symbols = normalized_symbols[: len(preamble)]
+        ref0_symbols = [
+            symbol for bit, symbol in zip(preamble, preamble_symbols) if bit == 0
+        ]
+        ref1_symbols = [
+            symbol for bit, symbol in zip(preamble, preamble_symbols) if bit == 1
+        ]
+
+        ref0 = np.mean(ref0_symbols) if ref0_symbols else None
+        ref1 = np.mean(ref1_symbols) if ref1_symbols else None
+
+        if ref0 is not None:
+            ref0 = ref0 / (np.abs(ref0) + eps)
+        if ref1 is not None:
+            ref1 = ref1 / (np.abs(ref1) + eps)
+
+        for symbol in normalized_symbols:
+            if ref0 is not None and ref1 is not None:
+                score0 = np.real(symbol * np.conj(ref0))
+                score1 = np.real(symbol * np.conj(ref1))
+                decoded_bits.append(0 if score0 >= score1 else 1)
+            elif ref0 is not None:
+                score0 = np.real(symbol * np.conj(ref0))
+                decoded_bits.append(0 if score0 >= 0 else 1)
+            elif ref1 is not None:
+                score1 = np.real(symbol * np.conj(ref1))
+                decoded_bits.append(1 if score1 >= 0 else 0)
+            else:
+                decoded_bits.append(0)
 
     # Strip leading/trailing preamble
     payload_bits = decoded_bits[len(preamble) :]

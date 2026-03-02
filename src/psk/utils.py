@@ -18,6 +18,28 @@ def bit_to_phase_wave(
     return symbol
 
 
+def bits_to_phase_wave(
+    bits: list[int],
+    frequency: int,
+    cycles_per_symbol: float,
+    sample_rate: int,
+) -> np.ndarray:
+    waveform_chunks = []
+    sample_offset = 0
+    samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
+    for bit in bits:
+        symbol = bit_to_phase_wave(
+            bit,
+            frequency,
+            samples_per_symbol,
+            sample_offset,
+            sample_rate,
+        )
+        waveform_chunks.append(symbol)
+        sample_offset += samples_per_symbol
+    return np.concatenate(waveform_chunks) if waveform_chunks else np.array([])
+
+
 def bytes_to_bits(data: bytes) -> list[int]:
     bits = []
     for byte in data:
