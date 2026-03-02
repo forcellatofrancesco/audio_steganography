@@ -7,7 +7,7 @@ from psk.utils import load_waveform_from_file
 def main():
     with open("config.toml", "rb") as f:
         config = tomllib.load(f)
-        waveform, sample_rate = load_waveform_from_file(config["output"]["waveform"])
+        waveform, sample_rate = load_waveform_from_file(config["input"]["waveform"])
         recovered_data = decode_phase_shift_keying(
             waveform,
             config["sync"]["preamble"],
