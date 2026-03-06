@@ -4,6 +4,7 @@ from psk.psk_encoder import (
 import tomllib
 
 from psk.utils import save_waveform_to_file
+from voice_manager import get_voice_manager
 
 
 def main():
@@ -29,6 +30,42 @@ def main():
                 volume=config["audio"]["volume"],
             )
             print(f"Audio file created: {config['output']['waveform']}")
+            manager = get_voice_manager(config["dataset"]["directory"])
+            audio_index = manager.build_audio_duration_index()
+
+            # print(
+            #     list(
+            #         map(
+            #             lambda x: x[0],
+            #             sorted(
+            #                 audio_index.items(),
+            #                 key=lambda x: x[1],
+            #             ),
+            #         )
+            #     )
+            # )
+            # print(audio_index.items())
+
+            def get_audios(target_duration: float) -> list[tuple[str, float]]:
+                possible = sorted(
+                    filter(
+                        lambda x: x[1] < target_duration,
+                        audio_index.items(),
+                    ),
+                    key=lambda x: x[1],
+                    reverse=True,
+                )
+                res = []
+                res.append(possible[-1])
+                total_duration = res[0][1]
+                for path, duration in possible[:-1]:
+                    if total_duration >= target_duration:
+                        break
+                    res.append((path, duration))
+                    total_duration += duration
+                return res
+
+            print(get_audios(700))
 
 
 if __name__ == "__main__":
