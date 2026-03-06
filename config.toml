@@ -3,13 +3,13 @@ waveform = "output/output.wav"
 message = "output/out.txt"
 
 [input]
-# waveform = "output/out.ogg"
-waveform = "output/output.wav" # do not use, it is the original
+waveform = "output/out.ogg"
+# waveform = "output/output.wav" # do not use, it is the original
 message = "input/message.txt"
 
 [audio]
 sample_rate = 48000
-frequency = 200
+frequency = 440
 cycles_per_symbol = 2
 volume = 0.8
 
@@ -20,7 +20,7 @@ preamble = [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0] # Barker sequence [+1, +1, +1
 # Available encoding - decoding algorithms:
 # - bpsk  = bit phase shift keying
 # - dbpsk = differential bit phase shift keying
-encoding_decoding = "bpsk"
+encoding_decoding = "dbpsk"
 
 [debug]
 out_txt = true

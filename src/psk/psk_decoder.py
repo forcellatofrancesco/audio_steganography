@@ -181,6 +181,7 @@ def decode_from_audio(
         return b""
 
     decoded_bits = []
+    # TODO: refactor this function
     if algorithm == "dbpsk":
         previous_phase = np.angle(symbol_values[0])
         for symbol_value in symbol_values[1:]:
