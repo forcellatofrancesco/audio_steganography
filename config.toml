@@ -24,3 +24,6 @@ encoding_decoding = "dbpsk"
 
 [debug]
 out_txt = true
+
+[dataset]
+voice_url = "https://openslr.trmal.net/resources/12/dev-clean.tar.gz"

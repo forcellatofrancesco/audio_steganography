@@ -2,14 +2,22 @@
 
 set -euo pipefail
 
-DATASET_URL="https://openslr.trmal.net/resources/12/dev-clean.tar.gz"
-ARCHIVE_NAME="dev-clean.tar.gz"
-EXTRACTED_DIR_NAME="LibriSpeech"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 INPUT_DIR="${REPO_ROOT}/input"
+ARCHIVE_NAME="dev-clean.tar.gz"
 ARCHIVE_PATH="${INPUT_DIR}/${ARCHIVE_NAME}"
+
+CONFIG_PATH="${REPO_ROOT}/config.toml"
+DATASET_URL="$(
+python3 - "$CONFIG_PATH" <<'PY'
+import sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    cfg = tomllib.load(f)
+print(cfg["dataset"]["voice_url"])
+PY
+)"
+EXTRACTED_DIR_NAME="LibriSpeech"
 
 mkdir -p "${INPUT_DIR}"
 
