@@ -1,8 +1,10 @@
 import numpy as np
+from scipy.signal import resample_poly
 import os
 import subprocess
 import tempfile
 import wave
+import math
 
 
 def bit_to_phase_wave(
@@ -60,7 +62,7 @@ def bits_to_bytes(bits: list[int]) -> bytes:
     return bytes(byte_values)
 
 
-def save_waveform_to_file(waveform, filename, sample_rate=44100, volume=1.0):
+def save_waveform_to_file(waveform, filename, sample_rate=44100):
     """
     Save a waveform array to a WAV file with 16-bit mono audio encoding.
 
@@ -69,7 +71,6 @@ def save_waveform_to_file(waveform, filename, sample_rate=44100, volume=1.0):
             Values should be in the range [-1, 1] for optimal normalization.
         filename (str): The output file path where the WAV file will be saved.
         sample_rate (int, optional): The sample rate in Hz. Defaults to 44100 Hz (CD quality).
-        volume (float, optional): Gain multiplier in [0.0, 1.0]. Defaults to 1.0.
 
     Returns:
         None
@@ -80,7 +81,6 @@ def save_waveform_to_file(waveform, filename, sample_rate=44100, volume=1.0):
 
     Notes:
         - The waveform is only normalized if it exceeds the [-1, 1] range.
-        - The volume is applied after any normalization.
         - The output is mono (single channel).
         - The sample width is fixed at 2 bytes (16 bits).
 
@@ -91,17 +91,13 @@ def save_waveform_to_file(waveform, filename, sample_rate=44100, volume=1.0):
     if waveform.size == 0:
         raise ValueError("Waveform array is empty.")
 
-    volume = float(volume)
-    if volume < 0.0 or volume > 1.0:
-        raise ValueError("volume must be in the range [0.0, 1.0].")
-
     peak = np.max(np.abs(waveform))
     if peak == 0:
         scaled = waveform
     elif peak > 1.0:
-        scaled = (waveform / peak) * volume
+        scaled = waveform / peak
     else:
-        scaled = waveform * volume
+        scaled = waveform
 
     output_ext = os.path.splitext(filename)[1].lower()
 
@@ -129,6 +125,35 @@ def save_waveform_to_file(waveform, filename, sample_rate=44100, volume=1.0):
     finally:
         if os.path.exists(temp_wav_path):
             os.remove(temp_wav_path)
+
+
+def change_waveform_volume(waveform: np.ndarray, gain: float) -> np.ndarray:
+    """
+    Scale a mono waveform by a gain factor.
+
+    Args:
+            waveform (np.ndarray): Input 1D waveform.
+            gain (float): Non-negative gain multiplier.
+                    ``1.0`` keeps the waveform unchanged, ``0.0`` silences it.
+
+    Returns:
+            np.ndarray: Gain-adjusted waveform (float32).
+
+    Raises:
+            ValueError: If waveform is not 1D, or gain is negative/non-finite.
+    """
+    waveform = np.asarray(waveform)
+    if waveform.ndim != 1:
+        raise ValueError("waveform must be a 1D array.")
+
+    gain = float(gain)
+    if not np.isfinite(gain) or gain < 0.0:
+        raise ValueError("gain must be a finite, non-negative number.")
+
+    if waveform.size == 0:
+        return np.array([], dtype=np.float32)
+
+    return (waveform.astype(np.float32) * gain).astype(np.float32, copy=False)
 
 
 def load_waveform_from_file(filename):
@@ -185,6 +210,127 @@ def load_waveform_from_file(filename):
     finally:
         if temp_wav_path and os.path.exists(temp_wav_path):
             os.remove(temp_wav_path)
+
+
+def load_and_concatenate_waveforms(file_paths: list[str]):
+    """
+    Load multiple FLAC files and concatenate them into one mono waveform.
+
+    Args:
+            file_paths (list[str]): Ordered list of ``.flac`` file paths.
+
+    Returns:
+            tuple[np.ndarray, int]: (concatenated_waveform, sample_rate)
+
+    Raises:
+            ValueError: If file list is empty, contains non-FLAC files, or sample rates differ.
+    """
+    if not file_paths:
+        raise ValueError("file_paths must contain at least one FLAC file path.")
+
+    waveform_chunks = []
+    sample_rate = None
+
+    for path in file_paths:
+        file_ext = os.path.splitext(path)[1].lower()
+        if file_ext != ".flac":
+            raise ValueError(f"Expected a .flac file, got: {path}")
+
+        waveform, current_sample_rate = load_waveform_from_file(path)
+        if sample_rate is None:
+            sample_rate = current_sample_rate
+        elif current_sample_rate != sample_rate:
+            raise ValueError(
+                f"Sample rate mismatch for '{path}': expected {sample_rate}, got {current_sample_rate}."
+            )
+
+        waveform_chunks.append(waveform)
+
+    concatenated = np.concatenate(waveform_chunks)
+    return concatenated, sample_rate
+
+
+def resample_waveform(
+    waveform: np.ndarray,
+    original_sample_rate: int,
+    target_sample_rate: int,
+) -> np.ndarray:
+    """
+    Resample a mono waveform to a new sample rate.
+
+    Args:
+            waveform (np.ndarray): Input 1D waveform.
+            original_sample_rate (int): Source sample rate in Hz.
+            target_sample_rate (int): Target sample rate in Hz.
+
+    Returns:
+            np.ndarray: Resampled waveform (float32).
+
+    Raises:
+            ValueError: If waveform shape is invalid or sample rates are not positive.
+    """
+    if original_sample_rate <= 0 or target_sample_rate <= 0:
+        raise ValueError("Sample rates must be positive integers.")
+
+    waveform = np.asarray(waveform)
+    if waveform.ndim != 1:
+        raise ValueError("waveform must be a 1D array.")
+    if waveform.size == 0:
+        return waveform.astype(np.float32)
+    if original_sample_rate == target_sample_rate:
+        return waveform.astype(np.float32, copy=True)
+
+    common_divisor = math.gcd(original_sample_rate, target_sample_rate)
+    up = target_sample_rate // common_divisor
+    down = original_sample_rate // common_divisor
+
+    resampled = resample_poly(waveform, up=up, down=down)
+    return resampled.astype(np.float32)
+
+
+def sum_waveforms_with_overlap(
+    waveform_a: np.ndarray,
+    waveform_b: np.ndarray,
+    waveform_b_start: int = 0,
+) -> np.ndarray:
+    """
+    Sum two mono waveforms so they overlap in time.
+
+    Args:
+            waveform_a (np.ndarray): First input waveform.
+            waveform_b (np.ndarray): Second input waveform.
+            waveform_b_start (int): Start index of ``waveform_b`` relative to
+                    ``waveform_a`` in samples. ``0`` means both start together.
+                    Positive values delay ``waveform_b``; negative values start it earlier.
+
+    Returns:
+            np.ndarray: The mixed waveform as float32.
+
+    Raises:
+            ValueError: If either waveform is not 1D.
+            TypeError: If ``waveform_b_start`` is not an integer.
+    """
+    if not isinstance(waveform_b_start, (int, np.integer)):
+        raise TypeError("waveform_b_start must be an integer sample index.")
+
+    waveform_a = np.asarray(waveform_a, dtype=np.float32)
+    waveform_b = np.asarray(waveform_b, dtype=np.float32)
+
+    if waveform_a.ndim != 1 or waveform_b.ndim != 1:
+        raise ValueError("Both waveforms must be 1D arrays.")
+
+    if waveform_a.size == 0 and waveform_b.size == 0:
+        return np.array([], dtype=np.float32)
+
+    anchor = min(0, int(waveform_b_start))
+    offset_a = -anchor
+    offset_b = int(waveform_b_start) - anchor
+    total_samples = max(offset_a + waveform_a.size, offset_b + waveform_b.size)
+
+    mixed = np.zeros(total_samples, dtype=np.float32)
+    mixed[offset_a : offset_a + waveform_a.size] += waveform_a
+    mixed[offset_b : offset_b + waveform_b.size] += waveform_b
+    return mixed
 
 
 def _convert_audio_via_ffmpeg(input_path: str, output_path: str):

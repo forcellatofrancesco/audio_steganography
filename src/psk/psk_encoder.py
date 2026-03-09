@@ -31,7 +31,7 @@ def encode_to_audio(
     frequency: int,
     cycles_per_symbol: float,
     algorithm: str,
-):
+) -> tuple[np.ndarray, float]:
     if frequency <= 0:
         raise ValueError("frequency must be positive.")
     if cycles_per_symbol <= 0:
@@ -44,4 +44,9 @@ def encode_to_audio(
         encoded_bits = encode_dbpsk_list(encode_bpsk(data, preamble))
     else:
         raise ValueError(algorithm, "algorithm not recognized")
-    return bits_to_phase_wave(encoded_bits, frequency, cycles_per_symbol, sample_rate)
+
+    waveform = bits_to_phase_wave(
+        encoded_bits, frequency, cycles_per_symbol, sample_rate
+    )
+    duration_seconds = float(waveform.size) / float(sample_rate)
+    return waveform, duration_seconds

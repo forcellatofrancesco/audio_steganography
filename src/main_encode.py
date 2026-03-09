@@ -3,7 +3,13 @@ from psk.psk_encoder import (
 )
 import tomllib
 
-from psk.utils import save_waveform_to_file
+from psk.utils import (
+    change_waveform_volume,
+    load_and_concatenate_waveforms,
+    resample_waveform,
+    save_waveform_to_file,
+    sum_waveforms_with_overlap,
+)
 from voice_manager import get_voice_manager
 
 
@@ -15,7 +21,7 @@ def main():
             message = "".join(input.readlines())
             preamble: list[int] = config["sync"]["preamble"]
             byte_data = message.encode("utf-8")
-            waveform = encode_to_audio(
+            data_wave, data_duration = encode_to_audio(
                 byte_data,
                 preamble,
                 sample_rate=config["audio"]["sample_rate"],
@@ -23,17 +29,37 @@ def main():
                 cycles_per_symbol=config["audio"]["cycles_per_symbol"],
                 algorithm=encoding_decoding_algorithm,
             )
+            data_wave = change_waveform_volume(
+                data_wave, config["audio"]["volume_gain_data"]
+            )
+            manager = get_voice_manager(config["dataset"]["directory"])
+            audios = manager.get_audios_by_total_duration(data_duration)
+            audios_waveform, audios_sample_rate = load_and_concatenate_waveforms(
+                list(map(lambda x: x[0], audios))
+            )
+            if audios_sample_rate is None:
+                raise ValueError(
+                    "Something went wrong with the concatenation of audio files."
+                )
+            audios_waveform = change_waveform_volume(
+                audios_waveform, config["audio"]["volume_gain_voice"]
+            )
+            if audios_sample_rate != config["audio"]["sample_rate"]:
+                audios_waveform = resample_waveform(
+                    audios_waveform,
+                    original_sample_rate=audios_sample_rate,
+                    target_sample_rate=config["audio"]["sample_rate"],
+                )
+            overlapped_waveforms = sum_waveforms_with_overlap(
+                data_wave,
+                audios_waveform,
+            )
             save_waveform_to_file(
-                waveform,
+                overlapped_waveforms,
                 config["output"]["waveform"],
                 sample_rate=config["audio"]["sample_rate"],
-                volume=config["audio"]["volume"],
             )
             print(f"Audio file created: {config['output']['waveform']}")
-            manager = get_voice_manager(config["dataset"]["directory"])
-            audios = manager.get_audios_by_total_duration(188.39)
-            sum_durations = lambda ls: sum(map(lambda x: x[1], ls))
-            print(sum_durations(audios))
 
 
 if __name__ == "__main__":
