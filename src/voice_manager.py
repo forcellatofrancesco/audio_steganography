@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from random import shuffle
 
 
 class VoiceManager:
@@ -58,6 +59,44 @@ class VoiceManager:
     def get_duration(self, audio_path: str) -> float | None:
         """Return duration in seconds for a given audio path, if available."""
         return self._audio_durations.get(audio_path)
+
+    def get_audios_by_total_duration(
+        self, target_duration: float, shuffled: bool = True
+    ) -> list[tuple[str, float]]:
+        """
+        Returns a list of audio file paths and their durations, selecting files
+        whose total duration meets or exceeds the specified target_duration
+        using a greedy approach. Optionally shuffles the result if shuffled is
+        True.
+        """
+        res = []
+        # Audios list is from longest to shortest, all audios have a duration inferior to the target one
+        audios = sorted(
+            filter(
+                lambda x: x[1] < target_duration,
+                self.build_audio_duration_index().items(),
+            ),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+        duration = target_duration
+        # Greedy approach
+        while duration > 0:
+            # Append audio from the longest to the shortest
+            # repeat the process if the target duration has not been reached
+            for path, d in audios:
+                if duration - d > 0:
+                    duration -= d
+                    res.append((path, d))
+            # Check if there are no more durations
+            if len(list(filter(lambda x: duration - x[1] > 0, audios))) == 0:
+                best = audios[-1]  # Pick the smallest one
+                duration -= best[1]
+                res.append(best)
+        if shuffled:
+            # Randomize the list so that it is not in the duration order
+            shuffle(res)
+        return res
 
     @staticmethod
     def _read_flac_duration_seconds(file_path: Path) -> float:
