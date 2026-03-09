@@ -53,6 +53,7 @@ def main():
             overlapped_waveforms = sum_waveforms_with_overlap(
                 data_wave,
                 audios_waveform,
+                random_offset=True,
             )
             save_waveform_to_file(
                 overlapped_waveforms,

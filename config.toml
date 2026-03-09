@@ -9,9 +9,9 @@ message = "input/message.txt"
 
 [audio]
 sample_rate = 48000
-frequency = 440
+frequency = 200
 cycles_per_symbol = 2
-volume_gain_data = 0.5
+volume_gain_data = 0.2
 volume_gain_voice = 1.0
 
 [sync]

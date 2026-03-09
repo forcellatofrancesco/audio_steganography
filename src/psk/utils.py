@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import wave
 import math
+import random
 
 
 def bit_to_phase_wave(
@@ -291,7 +292,7 @@ def resample_waveform(
 def sum_waveforms_with_overlap(
     waveform_a: np.ndarray,
     waveform_b: np.ndarray,
-    waveform_b_start: int = 0,
+    random_offset: bool = False,
 ) -> np.ndarray:
     """
     Sum two mono waveforms so they overlap in time.
@@ -310,8 +311,9 @@ def sum_waveforms_with_overlap(
             ValueError: If either waveform is not 1D.
             TypeError: If ``waveform_b_start`` is not an integer.
     """
-    if not isinstance(waveform_b_start, (int, np.integer)):
-        raise TypeError("waveform_b_start must be an integer sample index.")
+    offset = 0
+    if random_offset:
+        offset = random.randint(0, len(waveform_b) - len(waveform_a))
 
     waveform_a = np.asarray(waveform_a, dtype=np.float32)
     waveform_b = np.asarray(waveform_b, dtype=np.float32)
@@ -322,9 +324,9 @@ def sum_waveforms_with_overlap(
     if waveform_a.size == 0 and waveform_b.size == 0:
         return np.array([], dtype=np.float32)
 
-    anchor = min(0, int(waveform_b_start))
+    anchor = min(0, int(offset))
     offset_a = -anchor
-    offset_b = int(waveform_b_start) - anchor
+    offset_b = int(offset) - anchor
     total_samples = max(offset_a + waveform_a.size, offset_b + waveform_b.size)
 
     mixed = np.zeros(total_samples, dtype=np.float32)
