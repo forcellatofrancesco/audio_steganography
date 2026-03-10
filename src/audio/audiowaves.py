@@ -255,42 +255,31 @@ def load_waveform_from_file(filename):
             os.remove(temp_wav_path)
 
 
-def load_and_concatenate_waveforms(file_paths: list[str]):
-    """
-    Load multiple FLAC files and concatenate them into one mono waveform.
+def load_and_concatenate_waveforms(
+    file_paths: list[str],
+    sample_rate: int,
+    resample: bool = True,
+) -> np.ndarray:
 
-    Args:
-            file_paths (list[str]): Ordered list of ``.flac`` file paths.
-
-    Returns:
-            tuple[np.ndarray, int]: (concatenated_waveform, sample_rate)
-
-    Raises:
-            ValueError: If file list is empty, contains non-FLAC files, or sample rates differ.
-    """
     if not file_paths:
-        raise ValueError("file_paths must contain at least one FLAC file path.")
+        raise ValueError("file_paths must contain at least one audio file path.")
 
     waveform_chunks = []
-    sample_rate = None
 
     for path in file_paths:
-        file_ext = os.path.splitext(path)[1].lower()
-        if file_ext != ".flac":
-            raise ValueError(f"Expected a .flac file, got: {path}")
-
         waveform, current_sample_rate = load_waveform_from_file(path)
-        if sample_rate is None:
-            sample_rate = current_sample_rate
-        elif current_sample_rate != sample_rate:
-            raise ValueError(
-                f"Sample rate mismatch for '{path}': expected {sample_rate}, got {current_sample_rate}."
+        if current_sample_rate != sample_rate:
+            if not resample:
+                raise ValueError("sample rates do not match")
+            waveform = resample_waveform(
+                waveform,
+                current_sample_rate,
+                sample_rate,
             )
-
         waveform_chunks.append(waveform)
 
     concatenated = np.concatenate(waveform_chunks)
-    return concatenated, sample_rate
+    return concatenated
 
 
 def resample_waveform(
