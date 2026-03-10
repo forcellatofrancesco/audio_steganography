@@ -1,9 +1,11 @@
 from audio.audiowaves import (
+    apply_low_pass_filter,
     change_waveform_volume,
+    generate_white_noise,
     load_and_concatenate_waveforms,
     resample_waveform,
     save_waveform_to_file,
-    sum_waveforms_with_overlap,
+    sum_waveforms,
 )
 from audio.voice_manager import get_voice_manager
 from psk.psk_encoder import (
@@ -28,6 +30,12 @@ def main():
                 cycles_per_symbol=config["audio"]["cycles_per_symbol"],
                 algorithm=encoding_decoding_algorithm,
             )
+            # Remove harmonics in high frequencies
+            data_wave = apply_low_pass_filter(
+                data_wave,
+                config["audio"]["high_pass_filter"],
+                config["audio"]["sample_rate"],
+            )
             data_wave = change_waveform_volume(
                 data_wave, config["audio"]["volume_gain_data"]
             )
@@ -49,9 +57,16 @@ def main():
                     original_sample_rate=audios_sample_rate,
                     target_sample_rate=config["audio"]["sample_rate"],
                 )
-            overlapped_waveforms = sum_waveforms_with_overlap(
+
+            white_noise = generate_white_noise(
+                len(audios_waveform),
+                stddev=config["audio"]["volume_noise"],
+            )
+
+            overlapped_waveforms = sum_waveforms(
                 data_wave,
                 audios_waveform,
+                white_noise,
                 random_offset=True,
             )
             save_waveform_to_file(

@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.signal import resample_poly
+from scipy.signal import resample_poly, butter, sosfilt, sosfiltfilt
 import os
 import subprocess
 import tempfile
@@ -7,7 +7,10 @@ import wave
 import math
 import random
 
-def save_waveform_to_file(waveform, filename, sample_rate=44100):
+
+def save_waveform_to_file(
+    waveform: np.ndarray, filename: str, sample_rate: int = 44100
+):
     """
     Save a waveform array to a WAV file with 16-bit mono audio encoding.
 
@@ -99,6 +102,101 @@ def change_waveform_volume(waveform: np.ndarray, gain: float) -> np.ndarray:
         return np.array([], dtype=np.float32)
 
     return (waveform.astype(np.float32) * gain).astype(np.float32, copy=False)
+
+
+def generate_white_noise(
+    sample_count: int,
+    mean: float = 0.0,
+    stddev: float = 1.0,
+    seed: int | None = None,
+) -> np.ndarray:
+    """
+    Generate white-noise samples from a normal (Gaussian) distribution.
+
+    Args:
+            sample_count (int): Number of samples to generate.
+            mean (float, optional): Mean of the distribution. Defaults to ``0.0``.
+            stddev (float, optional): Standard deviation of the distribution.
+                    Defaults to ``1.0``.
+            seed (int | None, optional): Random seed for reproducible noise.
+
+    Returns:
+            np.ndarray: White-noise waveform as float32.
+
+    Raises:
+            ValueError: If parameters are invalid.
+    """
+    if not isinstance(sample_count, int) or sample_count < 0:
+        raise ValueError("sample_count must be a non-negative integer.")
+    if not np.isfinite(mean):
+        raise ValueError("mean must be a finite number.")
+    if not np.isfinite(stddev) or stddev < 0.0:
+        raise ValueError("stddev must be a finite, non-negative number.")
+
+    if sample_count == 0:
+        return np.array([], dtype=np.float32)
+
+    rng = np.random.default_rng(seed)
+    noise = rng.normal(loc=mean, scale=stddev, size=sample_count)
+    return noise.astype(np.float32)
+
+
+def apply_low_pass_filter(
+    waveform: np.ndarray,
+    high_frequency: float,
+    sample_rate: int,
+    order: int = 5,
+) -> np.ndarray:
+    """
+    Apply a low-pass Butterworth filter to a mono waveform.
+
+    Args:
+            waveform (np.ndarray): Input 1D waveform.
+            high_frequency (float): Cutoff frequency in Hz. Frequencies above
+                    this value are attenuated.
+            sample_rate (int): Waveform sample rate in Hz.
+            order (int, optional): Filter order. Defaults to ``5``.
+
+    Returns:
+            np.ndarray: Filtered waveform (float32).
+
+    Raises:
+            ValueError: If waveform shape is invalid or filter parameters are invalid.
+    """
+    waveform = np.asarray(waveform)
+    if waveform.ndim != 1:
+        raise ValueError("waveform must be a 1D array.")
+
+    if sample_rate <= 0:
+        raise ValueError("sample_rate must be a positive integer.")
+
+    high_frequency = float(high_frequency)
+    if not np.isfinite(high_frequency) or high_frequency <= 0:
+        raise ValueError("high_frequency must be a finite, positive number.")
+
+    if not isinstance(order, int) or order <= 0:
+        raise ValueError("order must be a positive integer.")
+
+    if waveform.size == 0:
+        return np.array([], dtype=np.float32)
+
+    nyquist = sample_rate / 2.0
+    if high_frequency >= nyquist:
+        return waveform.astype(np.float32, copy=True)
+
+    waveform = waveform.astype(np.float32)
+    sos = butter(order, high_frequency, btype="low", fs=sample_rate, output="sos")
+
+    # filtfilt may fail for very short signals because of internal padding.
+    try:
+        filtered = sosfiltfilt(sos, waveform)
+    except ValueError:
+        filtered = sosfilt(sos, waveform)
+
+    if isinstance(filtered, tuple):
+        filtered = filtered[0]
+
+    return np.asarray(filtered, dtype=np.float32)
 
 
 def load_waveform_from_file(filename):
@@ -233,7 +331,7 @@ def resample_waveform(
     return resampled.astype(np.float32)
 
 
-def sum_waveforms_with_overlap(
+def _overlap_waveforms(
     waveform_a: np.ndarray,
     waveform_b: np.ndarray,
     random_offset: bool = False,
@@ -277,6 +375,21 @@ def sum_waveforms_with_overlap(
     mixed[offset_a : offset_a + waveform_a.size] += waveform_a
     mixed[offset_b : offset_b + waveform_b.size] += waveform_b
     return mixed
+
+
+def sum_waveforms(*waveforms: np.ndarray, random_offset: bool = False) -> np.ndarray:
+    if len(waveforms) == 0:
+        return np.ndarray([])
+    if len(waveforms) == 1:
+        return waveforms[0]
+    res = waveforms[0]
+    for wave in waveforms[1:]:
+        # Check needed for the random offset
+        if len(res) < len(wave):
+            res = _overlap_waveforms(res, wave, random_offset)
+        else:
+            res = _overlap_waveforms(wave, res, random_offset)
+    return res
 
 
 def _convert_audio_via_ffmpeg(input_path: str, output_path: str):

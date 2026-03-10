@@ -10,9 +10,11 @@ message = "input/message.txt"
 [audio]
 sample_rate = 48000
 frequency = 200
+high_pass_filter = 250
 cycles_per_symbol = 2
-volume_gain_data = 0.2
+volume_gain_data = 0.15
 volume_gain_voice = 1.0
+volume_noise = 0.01
 
 [sync]
 preamble = [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0] # Barker sequence [+1, +1, +1, +1, +1, −1, −1, +1, +1, −1, +1, −1, +1]
