@@ -1,12 +1,8 @@
 import numpy as np
 from scipy.signal import butter, hilbert, sosfilt, sosfiltfilt
 
-from psk.utils import bits_to_bytes
-
-from .psk_encoder import (
-    bit_to_phase_wave,
-    encode_dbpsk_list,
-)
+from bit_phase.bit_phase import bit_to_phase_wave, bits_to_bytes
+from psk.psk_encoder import encode_dbpsk_list
 
 
 def _compute_band_edges(frequency, sample_rate, cycles_per_symbol):
@@ -41,16 +37,6 @@ def _prepare_analytic_signal(
     except ValueError:
         filtered = sosfilt(sos, waveform_f64)
     return np.asarray(hilbert(filtered), dtype=np.complex128)
-
-
-def _symbol_phase(analytic_waveform, start, samples_per_symbol, sample_rate, frequency):
-    segment = analytic_waveform[start : start + samples_per_symbol]
-    if segment.size < samples_per_symbol:
-        return None
-
-    t = (np.arange(samples_per_symbol) + start) / sample_rate
-    baseband = segment * np.exp(-1j * 2 * np.pi * frequency * t)
-    return np.angle(np.mean(baseband))
 
 
 def detect_preamble(

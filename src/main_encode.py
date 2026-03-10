@@ -1,16 +1,15 @@
-from psk.psk_encoder import (
-    encode_to_audio,
-)
-import tomllib
-
-from psk.utils import (
+from audio.audiowaves import (
     change_waveform_volume,
     load_and_concatenate_waveforms,
     resample_waveform,
     save_waveform_to_file,
     sum_waveforms_with_overlap,
 )
-from voice_manager import get_voice_manager
+from audio.voice_manager import get_voice_manager
+from psk.psk_encoder import (
+    encode_to_audio,
+)
+import tomllib
 
 
 def main():

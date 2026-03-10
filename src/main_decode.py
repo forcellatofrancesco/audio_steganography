@@ -1,7 +1,6 @@
+from audio.audiowaves import load_waveform_from_file
 from psk.psk_decoder import decode_from_audio
 import tomllib
-
-from psk.utils import load_waveform_from_file
 
 
 def main():

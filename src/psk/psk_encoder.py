@@ -1,5 +1,6 @@
 import numpy as np
-from psk.utils import bit_to_phase_wave, bits_to_phase_wave, bytes_to_bits
+
+from bit_phase.bit_phase import bits_to_phase_wave, bytes_to_bits
 
 
 def encode_dbpsk_list(bits: list[int], previous_bit: int = 1) -> list[int]:
