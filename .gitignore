@@ -1,6 +1,11 @@
 .venv/
 .github/
 .vscode/
+.env
+.env.*
+!.env.example
+.playwright_whatsapp_profile/
+src/.playwright_whatsapp_profile/
 *.wav
 *.pyc
 __pycache__/
