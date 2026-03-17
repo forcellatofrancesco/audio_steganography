@@ -1,52 +1,75 @@
-import os
 import subprocess
 import time
+import tomllib
 from pathlib import Path
 
-from dotenv import load_dotenv
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-
-def _get_env_bool(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _get_env_int(name: str, default: int) -> int:
-    value = os.getenv(name)
-    if value is None or value.strip() == "":
-        return default
-    try:
-        return int(value.strip())
-    except ValueError as exc:
-        raise ValueError(f"Environment variable {name} must be an integer.") from exc
-
-
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
 
+
+def _read_whatsapp_automation_config() -> dict:
+    config_path = BASE_DIR / "config.toml"
+    with config_path.open("rb") as f:
+        config = tomllib.load(f)
+    section = config.get("whatsapp_automation", {})
+    if not isinstance(section, dict):
+        return {}
+    return section
+
+
+def _as_bool(value, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return default
+
+
+def _as_int(value, default: int) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return default
+    return default
+
+
+WHATSAPP_AUTOMATION_CONFIG = _read_whatsapp_automation_config()
 WHATSAPP_URL = (
-    os.getenv("WHATSAPP_URL", "https://web.whatsapp.com/").strip()
+    str(WHATSAPP_AUTOMATION_CONFIG.get("url", "https://web.whatsapp.com/")).strip()
     or "https://web.whatsapp.com/"
 )
-WHATSAPP_ORIGIN = "https://web.whatsapp.com"
-PROFILE_DIR = Path(
-    os.getenv(
-        "WHATSAPP_PROFILE_DIR",
-        str(BASE_DIR / ".playwright_whatsapp_profile"),
+WHATSAPP_ORIGIN = (
+    str(WHATSAPP_AUTOMATION_CONFIG.get("origin", "https://web.whatsapp.com")).strip()
+    or "https://web.whatsapp.com"
+)
+
+_profile_dir_value = str(
+    WHATSAPP_AUTOMATION_CONFIG.get("profile_dir", ".playwright_whatsapp_profile")
+).strip()
+PROFILE_DIR = Path(_profile_dir_value).expanduser()
+if not PROFILE_DIR.is_absolute():
+    PROFILE_DIR = (BASE_DIR / PROFILE_DIR).resolve()
+
+HEADLESS = _as_bool(WHATSAPP_AUTOMATION_CONFIG.get("headless"), False)
+KEEP_OPEN = _as_bool(WHATSAPP_AUTOMATION_CONFIG.get("keep_open"), True)
+DEFAULT_TIMEOUT_MS = _as_int(
+    WHATSAPP_AUTOMATION_CONFIG.get("default_timeout_ms"), 15_000
+)
+RECORD_BUTTON_WAIT_TIMEOUT_MS = _as_int(
+    WHATSAPP_AUTOMATION_CONFIG.get("record_button_wait_timeout_ms"), 300_000
+)
+SEND_BUTTON_WAIT_TIMEOUT_MS = _as_int(
+    WHATSAPP_AUTOMATION_CONFIG.get("send_button_wait_timeout_ms"), 20_000
+)
+PLAYBACK_SCRIPT_PATH = str(
+    WHATSAPP_AUTOMATION_CONFIG.get(
+        "playback_script_path", "src/util/scripts/virtual_microphone/play_mic.sh"
     )
-).expanduser()
-HEADLESS = _get_env_bool("WHATSAPP_HEADLESS", False)
-KEEP_OPEN = _get_env_bool("WHATSAPP_KEEP_OPEN", True)
-DEFAULT_TIMEOUT_MS = _get_env_int("WHATSAPP_TIMEOUT_MS", 15_000)
-RECORD_BUTTON_WAIT_TIMEOUT_MS = _get_env_int("WHATSAPP_RECORD_WAIT_TIMEOUT_MS", 300_000)
-SEND_BUTTON_WAIT_TIMEOUT_MS = _get_env_int("WHATSAPP_SEND_WAIT_TIMEOUT_MS", 20_000)
-PLAYBACK_SCRIPT_PATH = os.getenv(
-    "WHATSAPP_PLAYBACK_SCRIPT",
-    "src/util/scripts/virtual_microphone/play_mic.sh",
 ).strip()
 
 

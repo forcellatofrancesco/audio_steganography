@@ -31,3 +31,14 @@ out_txt = true
 [dataset]
 voice_url = "https://openslr.trmal.net/resources/12/dev-clean.tar.gz"
 directory = "input/LibriSpeech"
+
+[whatsapp_automation]
+url = "https://web.whatsapp.com/"
+origin = "https://web.whatsapp.com"
+profile_dir = ".playwright_whatsapp_profile"
+headless = false
+keep_open = true
+default_timeout_ms = 15000
+record_button_wait_timeout_ms = 300000
+send_button_wait_timeout_ms = 20000
+playback_script_path = "src/util/scripts/virtual_microphone/play_mic.sh"
