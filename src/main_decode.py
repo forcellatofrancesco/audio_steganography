@@ -1,4 +1,5 @@
 from audio.audiowaves import load_waveform_from_file
+from audio.audio_config import AudioConfigFactory
 from psk.psk_decoder import decode_from_audio
 import tomllib
 
@@ -6,15 +7,16 @@ import tomllib
 def main():
     with open("config.toml", "rb") as f:
         config = tomllib.load(f)
+        audio_config = AudioConfigFactory(data=config).create()
         encoding_decoding_algorithm = config["algorithm"]["encoding_decoding"]
 
         waveform, sample_rate = load_waveform_from_file(config["input"]["waveform"])
         recovered_data = decode_from_audio(
             waveform,
             config["sync"]["preamble"],
-            sample_rate=config["audio"]["sample_rate"],
-            frequency=config["audio"]["frequency"],
-            cycles_per_symbol=config["audio"]["cycles_per_symbol"],
+            sample_rate=audio_config.sample_rate,
+            frequency=audio_config.frequency,
+            cycles_per_symbol=audio_config.cycles_per_symbol,
             algorithm=encoding_decoding_algorithm,
         ).decode("utf-8", errors="replace")
 
