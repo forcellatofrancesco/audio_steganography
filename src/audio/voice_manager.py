@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from random import Random
 from random import shuffle
 
 
@@ -61,13 +62,16 @@ class VoiceManager:
         return self._audio_durations.get(audio_path)
 
     def get_audios_by_total_duration(
-        self, target_duration: float, shuffled: bool = True
+        self,
+        target_duration: float,
+        shuffled: bool = True,
+        seed: int | None = None,
     ) -> list[tuple[str, float]]:
         """
         Returns a list of audio file paths and their durations, selecting files
         whose total duration meets or exceeds the specified target_duration
         using a greedy approach. Optionally shuffles the result if shuffled is
-        True.
+        True. If ``seed`` is provided, the shuffle order is deterministic.
         """
         res = []
         # Audios list is from longest to shortest, all audios have a duration inferior to the target one
@@ -95,7 +99,10 @@ class VoiceManager:
                 res.append(best)
         if shuffled:
             # Randomize the list so that it is not in the duration order
-            shuffle(res)
+            if seed is None:
+                shuffle(res)
+            else:
+                Random(seed).shuffle(res)
         return res
 
     @staticmethod

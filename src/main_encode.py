@@ -20,6 +20,7 @@ def encode_from_config(
     algorithm: str,
     dataset_directory: str,
     output_path: str,
+    seed: int | None,
     audio_config: AudioConfig,
 ) -> None:
     data_wave, data_duration = encode_to_audio(
@@ -39,7 +40,11 @@ def encode_from_config(
     data_wave = change_waveform_volume(data_wave, audio_config.volume_gain_data)
 
     manager = get_voice_manager(dataset_directory)
-    audios = manager.get_audios_by_total_duration(data_duration)
+    audios = manager.get_audios_by_total_duration(
+        data_duration,
+        shuffled=True,
+        seed=seed,
+    )
     audios_waveform = load_and_concatenate_waveforms(
         list(map(lambda x: x[0], audios)),  # Remove durations
         audio_config.sample_rate,
@@ -51,6 +56,7 @@ def encode_from_config(
     white_noise = generate_white_noise(
         len(audios_waveform),
         stddev=audio_config.volume_noise,
+        seed=seed,
     )
 
     overlapped_waveforms = sum_waveforms(
@@ -64,6 +70,7 @@ def encode_from_config(
         output_path,
         sample_rate=audio_config.sample_rate,
     )
+
 
 def main():
     config = None
@@ -82,6 +89,7 @@ def main():
         encoding_decoding_algorithm,
         config["dataset"]["directory"],
         config["output"]["waveform"],
+        config["algorithm"].get("shuffle_seed"),
         audio_config,
     )
     print(f"Audio file created: {config['output']['waveform']}")

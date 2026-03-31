@@ -25,6 +25,8 @@ preamble = [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0] # Barker sequence [+1, +1, +1
 # - bpsk  = bit phase shift keying
 # - dbpsk = differential bit phase shift keying
 encoding_decoding = "dbpsk"
+# Optional: set an integer seed to make audio shuffle and noise generation deterministic.
+shuffle_seed = 12345
 
 [debug]
 out_txt = true

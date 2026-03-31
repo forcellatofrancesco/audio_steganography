@@ -133,6 +133,7 @@ def main():
                             encoding_decoding_algorithm,
                             config_file["dataset"]["directory"],
                             config_file["output"]["waveform"],
+                            config_file["algorithm"].get("shuffle_seed"),
                             audio_config,
                         )
                         # Execute the complete workflow
