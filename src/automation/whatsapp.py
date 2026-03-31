@@ -413,11 +413,6 @@ class WhatsAppAutomation(SocialMediaAutomation):
         Returns:
             Path to the downloaded audio file.
         """
-        print("Waiting for WhatsApp Web. Scan QR code if prompted...")
-        self.load_main_ui()
-
-        print("Now open the target chat manually.")
-        print("Waiting for the recording button to appear...")
         self.start_recording()
 
         playback_error = None

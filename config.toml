@@ -1,6 +1,7 @@
 [output]
 waveform = "output/output.wav"
 message = "output/out.txt"
+automation_runs_csv = "output/automation_runs.csv"
 
 [input]
 # waveform = "output/out.ogg"

@@ -65,7 +65,6 @@ def encode_from_config(
         sample_rate=audio_config.sample_rate,
     )
 
-
 def main():
     config = None
     with open("config.toml", "rb") as f:
