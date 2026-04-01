@@ -2,6 +2,7 @@
 waveform = "output/output.wav"
 message = "output/out.txt"
 automation_runs_csv = "output/automation_runs.csv"
+decoded_csv = "output/decoded.csv"
 
 [input]
 # waveform = "output/out.ogg"
@@ -46,4 +47,4 @@ record_button_wait_timeout_ms = 300000
 send_button_wait_timeout_ms = 20000
 download_wait_timeout_ms = 30000
 playback_script_path = "src/util/scripts/virtual_microphone/play_mic.sh"
-download_output_path = "output"
+download_output_path = "output/whatsaudio"

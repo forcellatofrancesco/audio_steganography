@@ -113,13 +113,16 @@ def main():
                 )
                 if not csv_exists:
                     writer.writeheader()
-
+                percentage = 0.0
                 for combo in itertools.product(*values):
                     params = dict(zip(keys, combo))
                     current_key = _params_key(params, keys)
                     if current_key in completed_keys:
                         continue
-
+                    p = len(completed_keys) / total * 100.0
+                    if p > percentage + 1.0:
+                        percentage = p
+                        print(f"Completed: {p}%")
                     try:
                         audio_config = AudioConfig(
                             frequency=params["frequency"],
