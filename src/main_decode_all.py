@@ -20,10 +20,10 @@ def decode_row(row, message, preamble, cycles_per_symbol, encoding_decoding_algo
     ).decode("utf-8", errors="replace")
     trimmed = recovered_data[: len(message)]
     difference = sum(1 for a, b in zip(trimmed, message) if a != b)
-    correctness = (len(message) - difference) / len(message)
+    error_rate = difference / len(message)
     return {
         **row,
-        "correctness": correctness,
+        "error_rate": error_rate,
         "decoded_data": recovered_data,
     }
 
@@ -53,7 +53,7 @@ def main():
             "volume_noise",
             "download_path",
             "status",
-            "correctness",
+            "error_rate",
             "decoded_data",
         ]
         reader = csv.DictReader(csv_input)
