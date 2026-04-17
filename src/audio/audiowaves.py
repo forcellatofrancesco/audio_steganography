@@ -90,14 +90,14 @@ def change_waveform_volume(waveform: np.ndarray, gain: float) -> np.ndarray:
     Raises:
             ValueError: If waveform is not 1D, or gain is negative/non-finite.
     """
+    # If gain == 1, then no change is needed
+    if math.isclose(gain, 1.0):
+        return waveform
     waveform = np.asarray(waveform)
     if waveform.ndim != 1:
         raise ValueError("waveform must be a 1D array.")
-
-    gain = float(gain)
     if not np.isfinite(gain) or gain < 0.0:
         raise ValueError("gain must be a finite, non-negative number.")
-
     if waveform.size == 0:
         return np.array([], dtype=np.float32)
 

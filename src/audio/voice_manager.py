@@ -76,10 +76,7 @@ class VoiceManager:
         res = []
         # Audios list is from longest to shortest, all audios have a duration inferior to the target one
         audios = sorted(
-            filter(
-                lambda x: x[1] < target_duration,
-                self.build_audio_duration_index().items(),
-            ),
+            self.build_audio_duration_index().items(),
             key=lambda x: x[1],
             reverse=True,
         )
