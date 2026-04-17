@@ -22,6 +22,7 @@ import itertools
 import numpy as np
 
 from main_encode import encode_from_config
+from util import test_messages
 
 
 def _normalize_param(value: Any) -> str:
@@ -41,11 +42,8 @@ def main():
     with open("config.toml", "rb") as f:
         config_file = tomllib.load(f)
     encoding_decoding_algorithm = config_file["algorithm"]["encoding_decoding"]
-    message = None
-    with open(config_file["input"]["message"], "r") as input:
-        message = "".join(input.readlines())
     preamble: list[int] = config_file["sync"]["preamble"]
-    byte_data = message.encode("utf-8")
+
     # Load WhatsApp configuration (edit config.toml to customize)
     config = WhatsAppConfig()
     config.profile_dir.mkdir(parents=True, exist_ok=True)
@@ -69,16 +67,10 @@ def main():
 
             print("Now open the target chat manually.")
             print("Waiting for the recording button to appear...")
-
-            # param_grid = {
-            #     "frequency": np.arange(200, 15000, 100),
-            #     "volume_gain_data": np.arange(0.15, 1.0, 0.05),
-            #     "volume_noise": np.arange(0.01, 1.0, 0.05),
-            # }
             param_grid = {
-                "frequency": np.linspace(150, 350, num=10),
+                "frequency": np.linspace(150, 350, num=10).astype(int),
                 "volume_gain_data": np.linspace(0.15, 1.0, num=10),
-                "volume_noise": np.linspace(0.01, 1.0, num=10),
+                "message": test_messages.messages,
             }
             keys = list(param_grid.keys())
             values = list(param_grid.values())
@@ -109,7 +101,7 @@ def main():
             with csv_output_path.open("a", newline="", encoding="utf-8") as csv_file:
                 writer = csv.DictWriter(
                     csv_file,
-                    fieldnames=[*keys, "download_path", "status"],
+                    fieldnames=[*keys, "volume_noise", "download_path", "status"],
                 )
                 if not csv_exists:
                     writer.writeheader()
@@ -128,8 +120,8 @@ def main():
                             frequency=params["frequency"],
                             high_pass_filter=params["frequency"] + 50,
                             volume_gain_data=params["volume_gain_data"],
-                            volume_noise=params["volume_noise"],
                         )
+                        byte_data = params["message"].encode("utf-8")
                         encode_from_config(
                             byte_data,
                             preamble,
@@ -145,6 +137,7 @@ def main():
                         writer.writerow(
                             {
                                 **params,
+                                "volume_noise": audio_config.volume_noise,
                                 "download_path": (
                                     str(downloaded_path) if downloaded_path else ""
                                 ),
