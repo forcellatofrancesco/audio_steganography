@@ -104,6 +104,9 @@ class WhatsAppConfig(AutomationConfig):
         self.send_button_wait_timeout_ms = _as_int(
             config_dict.get("send_button_wait_timeout_ms"), 20_000
         )
+        self.post_send_settle_delay_ms = _as_int(
+            config_dict.get("post_send_settle_delay_ms"), 2_000
+        )
         self.download_wait_timeout_ms = _as_int(
             config_dict.get("download_wait_timeout_ms"), 30_000
         )

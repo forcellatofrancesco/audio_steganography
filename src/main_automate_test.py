@@ -68,7 +68,7 @@ def main():
             print("Now open the target chat manually.")
             print("Waiting for the recording button to appear...")
             param_grid = {
-                "frequency": np.linspace(150, 400, num=15).astype(int),
+                "frequency": np.linspace(150, 400, num=10).astype(int),
                 "volume_gain_data": np.linspace(0.15, 1.0, num=10),
                 "message": test_messages.messages,
             }

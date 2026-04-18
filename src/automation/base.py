@@ -68,12 +68,18 @@ class SocialMediaAutomation(ABC):
         pass
 
     @abstractmethod
-    def download_audio(self, previous_visible_audio_count: int) -> str:
+    def download_audio(
+        self,
+        previous_visible_audio_count: int,
+        previous_visible_audio_signatures: set[tuple[int, int]] | None = None,
+    ) -> str:
         """Wait for the sent voice message and download it.
 
         Args:
             previous_visible_audio_count: Number of audio messages visible before send.
                 Used to detect when a new message arrives.
+            previous_visible_audio_signatures: Optional signatures of visible audio
+                controls before send, used to avoid reselecting old messages.
 
         Returns:
             Path to the downloaded audio file.

@@ -45,6 +45,7 @@ keep_open = false
 default_timeout_ms = 15000
 record_button_wait_timeout_ms = 300000
 send_button_wait_timeout_ms = 20000
+post_send_settle_delay_ms = 1250
 download_wait_timeout_ms = 30000
 playback_script_path = "src/util/scripts/virtual_microphone/play_mic.sh"
 download_output_path = "output/whatsaudio"

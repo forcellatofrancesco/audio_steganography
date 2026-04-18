@@ -182,10 +182,22 @@ class WhatsAppAutomation(SocialMediaAutomation):
 
         raise RuntimeError("Could not find send button after playback finished.")
 
-    def download_audio(self, previous_visible_audio_count: int) -> str:
+    def download_audio(
+        self,
+        previous_visible_audio_count: int,
+        previous_visible_audio_signatures: set[tuple[int, int]] | None = None,
+    ) -> str:
         """Wait for the sent audio message and download it to the output folder."""
         output_dir = self.config.download_output_path
         output_dir.mkdir(parents=True, exist_ok=True)
+        previous_visible_audio_signatures = previous_visible_audio_signatures or set()
+
+        if self.config.post_send_settle_delay_ms > 0:
+            print(
+                "Waiting for WhatsApp UI to render the sent audio bubble "
+                f"({self.config.post_send_settle_delay_ms} ms)..."
+            )
+            self.page.wait_for_timeout(self.config.post_send_settle_delay_ms)
 
         deadline = time.monotonic() + (self.config.download_wait_timeout_ms / 1000)
         last_wait_log = 0.0
@@ -206,6 +218,8 @@ class WhatsAppAutomation(SocialMediaAutomation):
                     latest_container = None
                     latest_key = (float("-inf"), float("-inf"))
                     visible_count = 0
+                    new_outgoing_candidates = []
+                    new_fallback_candidates = []
                     outgoing_candidates = []
                     fallback_candidates = []
                     page_width = (self.page.viewport_size or {}).get("width", 1366)
@@ -241,6 +255,10 @@ class WhatsAppAutomation(SocialMediaAutomation):
                             button_center_x = button_box["x"] + (
                                 button_box["width"] / 2
                             )
+                            signature = (
+                                int(round(button_center_y)),
+                                int(round(button_center_x)),
+                            )
 
                             entry = (
                                 (button_center_y, button_center_x),
@@ -248,10 +266,14 @@ class WhatsAppAutomation(SocialMediaAutomation):
                                 container.first,
                             )
                             fallback_candidates.append(entry)
+                            if signature not in previous_visible_audio_signatures:
+                                new_fallback_candidates.append(entry)
 
                             # Prefer outgoing (right side) messages, then latest by Y/X.
                             if button_center_x > (page_width * 0.55):
                                 outgoing_candidates.append(entry)
+                                if signature not in previous_visible_audio_signatures:
+                                    new_outgoing_candidates.append(entry)
                         except Exception:
                             continue
 
@@ -260,7 +282,12 @@ class WhatsAppAutomation(SocialMediaAutomation):
                         self.page.wait_for_timeout(300)
                         continue
 
-                    candidates = outgoing_candidates or fallback_candidates
+                    candidates = (
+                        new_outgoing_candidates
+                        or new_fallback_candidates
+                        or outgoing_candidates
+                        or fallback_candidates
+                    )
                     if candidates:
                         latest_key, latest_button, latest_container = max(
                             candidates, key=lambda x: x[0]
@@ -269,7 +296,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
                     if latest_container is not None and latest_button is not None:
                         print(
                             "Found new audio message; selecting latest "
-                            f"{'outgoing' if outgoing_candidates else 'visible'} audio button "
+                            f"{'new outgoing' if new_outgoing_candidates else ('new visible' if new_fallback_candidates else ('outgoing' if outgoing_candidates else 'visible'))} audio button "
                             f"(visible={visible_count}, previous={previous_visible_audio_count}, y={latest_key[0]:.1f})..."
                         )
                         latest_button.scroll_into_view_if_needed()
@@ -423,6 +450,23 @@ class WhatsAppAutomation(SocialMediaAutomation):
                 continue
         return count
 
+    def _visible_audio_signatures(self) -> set[tuple[int, int]]:
+        """Return coarse signatures for currently visible audio controls."""
+        signatures: set[tuple[int, int]] = set()
+        for button in self.page.locator(self.VOICE_BUTTONS_SELECTOR).all():
+            try:
+                if not button.is_visible():
+                    continue
+                box = button.bounding_box()
+                if not box:
+                    continue
+                center_y = box["y"] + (box["height"] / 2)
+                center_x = box["x"] + (box["width"] / 2)
+                signatures.add((int(round(center_y)), int(round(center_x))))
+            except Exception:
+                continue
+        return signatures
+
     def run(self) -> str:
         """Execute the complete WhatsApp voice message workflow.
 
@@ -438,6 +482,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
             playback_error = exc
 
         previous_visible_audio_count = self._count_visible_voice_buttons()
+        previous_visible_audio_signatures = self._visible_audio_signatures()
 
         print("Trying to send the recorded audio...")
         self.send_recording()
@@ -446,7 +491,10 @@ class WhatsAppAutomation(SocialMediaAutomation):
             raise playback_error
 
         print("Waiting for audio to be downloaded...")
-        downloaded_path = self.download_audio(previous_visible_audio_count)
+        downloaded_path = self.download_audio(
+            previous_visible_audio_count,
+            previous_visible_audio_signatures,
+        )
         print(f"Audio file downloaded to: {downloaded_path}")
 
         return downloaded_path
