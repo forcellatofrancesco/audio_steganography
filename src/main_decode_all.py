@@ -3,6 +3,7 @@ import tomllib
 import csv
 from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
+from collections import Counter
 from audio.audiowaves import load_waveform_from_file
 from psk.psk_decoder import decode_from_audio
 
@@ -10,7 +11,7 @@ from psk.psk_decoder import decode_from_audio
 def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
     """Decode a single row's audio data."""
     waveform, sample_rate = load_waveform_from_file(row.get("download_path", ""))
-    message = row.get("message")
+    message = row.get("message", "")
     recovered_data = decode_from_audio(
         waveform,
         preamble,
@@ -49,8 +50,8 @@ def main():
         keys = [
             "frequency",
             "volume_gain_data",
-            "volume_noise",
             "message",
+            "volume_noise",
             "download_path",
             "status",
             "error_rate",
@@ -61,6 +62,17 @@ def main():
         writer.writeheader()
 
         rows = list(reader)
+        path_counts = Counter(row.get("download_path", "") for row in rows)
+        duplicated_paths = {
+            path: count for path, count in path_counts.items() if path and count > 1
+        }
+        if duplicated_paths:
+            print(
+                "Warning: duplicate download_path values found. "
+                "Some rows likely reference overwritten files. "
+                f"Duplicated paths: {len(duplicated_paths)}"
+            )
+
         total_rows = len(rows)
         last_printed_percentage = -1
 

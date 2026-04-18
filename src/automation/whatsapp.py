@@ -15,6 +15,22 @@ from .base import SocialMediaAutomation
 from .config import BASE_DIR, WhatsAppConfig
 
 
+def _next_available_path(output_dir: Path, filename: str) -> Path:
+    """Return a non-colliding file path in output_dir for filename."""
+    candidate = output_dir / filename
+    if not candidate.exists():
+        return candidate
+
+    stem = candidate.stem
+    suffix = candidate.suffix
+    counter = 1
+    while True:
+        unique_candidate = output_dir / f"{stem}_{counter:03d}{suffix}"
+        if not unique_candidate.exists():
+            return unique_candidate
+        counter += 1
+
+
 class WhatsAppAutomation(SocialMediaAutomation):
     """WhatsApp Web automation implementation."""
 
@@ -379,7 +395,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"downloaded_audio_{timestamp}.ogg"
 
-        output_path = output_dir / filename
+        output_path = _next_available_path(output_dir, filename)
         download.save_as(str(output_path))
 
         print(f"Audio downloaded successfully to: {output_path}")
