@@ -7,9 +7,10 @@ from audio.audiowaves import load_waveform_from_file
 from psk.psk_decoder import decode_from_audio
 
 
-def decode_row(row, message, preamble, cycles_per_symbol, encoding_decoding_algorithm):
+def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
     """Decode a single row's audio data."""
     waveform, sample_rate = load_waveform_from_file(row.get("download_path", ""))
+    message = row.get("message")
     recovered_data = decode_from_audio(
         waveform,
         preamble,
@@ -34,8 +35,6 @@ def main():
     encoding_decoding_algorithm = config["algorithm"]["encoding_decoding"]
     preamble = config["sync"]["preamble"]
     cycles_per_symbol = config["audio"]["cycles_per_symbol"]
-    with open(config["input"]["message"], "r") as f:
-        message = "".join(f.readlines())
     with open(
         config["output"]["automation_runs_csv"],
         "r",
@@ -51,6 +50,7 @@ def main():
             "frequency",
             "volume_gain_data",
             "volume_noise",
+            "message",
             "download_path",
             "status",
             "error_rate",
@@ -70,7 +70,6 @@ def main():
                 executor.map(
                     decode_row,
                     rows,
-                    repeat(message),
                     repeat(preamble),
                     repeat(cycles_per_symbol),
                     repeat(encoding_decoding_algorithm),
