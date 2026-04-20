@@ -26,7 +26,7 @@ def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
     return {
         **row,
         "error_rate": error_rate,
-        "decoded_data": recovered_data,
+        "decoded_data": trimmed,
     }
 
 
