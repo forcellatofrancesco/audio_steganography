@@ -28,6 +28,7 @@ def _prepare_analytic_signal(
         return np.asarray(waveform, dtype=np.complex64)
 
     low, high = _compute_band_edges(frequency, sample_rate, cycles_per_symbol)
+    # non serve
     sos = butter(
         filter_order, [low, high], btype="bandpass", fs=sample_rate, output="sos"
     )
@@ -40,7 +41,7 @@ def _prepare_analytic_signal(
 
 
 def detect_preamble(
-    waveform,
+    waveform: np.ndarray,
     preamble: list[int],
     sample_rate=44100,
     frequency=440,
@@ -92,7 +93,7 @@ def detect_preamble(
     )
     if expected.size == 0 or waveform.size < expected.size:
         return 0
-
+    # TODO: filtered_waveform should be useless
     filtered_waveform = np.asarray(
         np.real(
             _prepare_analytic_signal(
@@ -104,10 +105,15 @@ def detect_preamble(
         ),
         dtype=np.float64,
     )
-
+    filtered_waveform = waveform
     expected = expected - np.mean(expected)
+
+    # TODO: check if the division by correlation works
     candidate = filtered_waveform - np.mean(filtered_waveform)
+    candidate = candidate / np.var(candidate)
     correlation = np.correlate(candidate, expected, mode="valid")
+    correlation = correlation / np.var(correlation)
+
     if correlation.size == 0:
         return 0
 

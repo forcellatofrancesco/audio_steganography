@@ -119,6 +119,7 @@ def process_parameter_set(
     try:
         audio_config = AudioConfig(
             frequency=params["frequency"],
+            # I tried changing the value but it kept getting worse
             high_pass_filter=params["frequency"] + 50,
             volume_gain_data=params["volume_gain_data"],
         )
@@ -151,7 +152,7 @@ def process_parameter_set(
             "status": "success",
             "exception": None,
         }
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return {
             **params,
             "status": "failed",
