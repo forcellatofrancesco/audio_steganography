@@ -1,43 +1,7 @@
 import numpy as np
-from scipy.signal import butter, hilbert, sosfilt, sosfiltfilt
 
 from bit_phase.bit_phase import bit_to_phase_wave, bits_to_bytes
 from psk.psk_encoder import encode_dbpsk_list
-
-
-def _compute_band_edges(frequency, sample_rate, cycles_per_symbol):
-    nyquist = sample_rate / 2.0
-    symbol_rate = frequency / cycles_per_symbol
-    bandwidth = max(symbol_rate * 2.0, frequency * 0.2)
-    low = max(1.0, frequency - bandwidth / 2.0)
-    high = min(nyquist * 0.98, frequency + bandwidth / 2.0)
-    if low >= high:
-        high = min(nyquist * 0.98, frequency * 1.1)
-        low = max(1.0, frequency * 0.9)
-    return low, high
-
-
-def _prepare_analytic_signal(
-    waveform,
-    sample_rate,
-    frequency,
-    cycles_per_symbol,
-    filter_order=6,
-):
-    if waveform.size == 0:
-        return np.asarray(waveform, dtype=np.complex64)
-
-    low, high = _compute_band_edges(frequency, sample_rate, cycles_per_symbol)
-    # non serve
-    sos = butter(
-        filter_order, [low, high], btype="bandpass", fs=sample_rate, output="sos"
-    )
-    waveform_f64 = waveform.astype(np.float64)
-    try:
-        filtered = sosfiltfilt(sos, waveform_f64)
-    except ValueError:
-        filtered = sosfilt(sos, waveform_f64)
-    return np.asarray(hilbert(filtered), dtype=np.complex128)
 
 
 def detect_preamble(
@@ -93,31 +57,39 @@ def detect_preamble(
     )
     if expected.size == 0 or waveform.size < expected.size:
         return 0
-    # TODO: filtered_waveform should be useless
-    filtered_waveform = np.asarray(
-        np.real(
-            _prepare_analytic_signal(
-                waveform,
-                sample_rate,
-                frequency,
-                cycles_per_symbol,
-            )
-        ),
-        dtype=np.float64,
-    )
-    filtered_waveform = waveform
+
+    # Direct matched filtering on the raw waveform.
+    # This is equivalent to sliding a dot product over the signal, but faster and
+    # without the bandpass/Hilbert preprocessing.
+    candidate = np.real(np.asarray(waveform))
+    candidate = candidate - np.mean(candidate)
+
     expected = expected - np.mean(expected)
+    expected_analytic = np.real(np.asarray(expected))
 
-    # TODO: check if the division by correlation works
-    candidate = filtered_waveform - np.mean(filtered_waveform)
-    candidate = candidate / np.var(candidate)
-    correlation = np.correlate(candidate, expected, mode="valid")
-    correlation = correlation / np.var(correlation)
-
-    if correlation.size == 0:
+    win_len = expected_analytic.size
+    if candidate.size < win_len:
         return 0
 
-    return int(np.argmax(np.abs(correlation)))
+    # Fast sliding matched filter.
+    raw_scores = np.correlate(candidate, expected_analytic, mode="valid")
+    template_energy = np.sum(np.abs(expected_analytic) ** 2)
+    if template_energy == 0:
+        return 0
+
+    candidate_power = np.abs(candidate) ** 2
+    candidate_energy = np.convolve(candidate_power, np.ones(win_len), mode="valid")
+    denom = np.sqrt(candidate_energy * template_energy)
+    scores = np.divide(
+        raw_scores,
+        denom,
+        out=np.zeros_like(raw_scores, dtype=np.float64),
+        where=denom > 0,
+    )
+
+    # pick the offset with maximum absolute normalized inner product
+    best = int(np.argmax(np.abs(scores)))
+    return best
 
 
 def decode_from_audio(
@@ -135,15 +107,6 @@ def decode_from_audio(
     if algorithm not in {"bpsk", "dbpsk"}:
         raise ValueError(algorithm, "algorithm not recognized")
 
-    analytic_waveform = np.asarray(
-        _prepare_analytic_signal(
-            waveform,
-            sample_rate,
-            frequency,
-            cycles_per_symbol,
-        ),
-        dtype=np.complex128,
-    )
     start_index = detect_preamble(
         waveform,
         preamble,
@@ -152,7 +115,7 @@ def decode_from_audio(
         cycles_per_symbol=cycles_per_symbol,
         algorithm=algorithm,
     )
-    trimmed_waveform = analytic_waveform[start_index:]
+    trimmed_waveform = np.asarray(waveform[start_index:], dtype=np.float64)
 
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     if trimmed_waveform.size < samples_per_symbol:
@@ -166,8 +129,8 @@ def decode_from_audio(
         if segment.size < samples_per_symbol:
             break
         t = (np.arange(samples_per_symbol) + start) / sample_rate
-        baseband = segment * np.exp(-1j * 2 * np.pi * frequency * t)
-        symbol_values.append(np.mean(baseband))
+        mixed = segment * np.exp(-1j * 2 * np.pi * frequency * t)
+        symbol_values.append(np.sum(mixed) / samples_per_symbol)
 
     if len(symbol_values) < 2:
         return b""
