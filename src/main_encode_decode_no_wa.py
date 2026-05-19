@@ -91,20 +91,22 @@ def decode_row(
 ):
     """Decode a single row's audio data."""
     waveform, sample_rate = load_waveform_from_file(download_path)
-    recovered_data = decode_from_audio(
+    recovered_data, decode_status = decode_from_audio(
         waveform,
         preamble,
         sample_rate=sample_rate,
         frequency=frequency,
         cycles_per_symbol=cycles_per_symbol,
         algorithm=encoding_decoding_algorithm,
-    ).decode("utf-8", errors="replace")
+    )
+    recovered_data = recovered_data.decode("utf-8", errors="replace")
     trimmed = recovered_data[: len(message)]
     difference = sum(1 for a, b in zip(trimmed, message) if a != b)
     error_rate = difference / len(message)
     return {
         "error_rate": error_rate,
         "decoded_data": recovered_data,
+        "decode_status": decode_status,
     }
 
 
@@ -150,6 +152,7 @@ def process_parameter_set(
             "error_rate": decoded_row["error_rate"],
             "decoded_data": decoded_row["decoded_data"],
             "status": "success",
+            "decode_status": decoded_row["decode_status"],
             "exception": None,
         }
     except Exception as exc:
@@ -208,6 +211,7 @@ def main():
                 "status",
                 "error_rate",
                 "decoded_data",
+                "decode_status",
             ],
         )
         if csv_output_path.stat().st_size == 0:
