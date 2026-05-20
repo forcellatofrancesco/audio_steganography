@@ -225,9 +225,8 @@ def decode_from_audio(
     if len(payload_bits) < 16:
         return b"", "no-length-in-header"
     # Cut the payload to the right length
-    payload_length = bits_to_int(payload_bits[:16])
+    payload_length = bits_to_int(payload_bits[:16]) * 8
     payload_bits = payload_bits[16:]
-
     if len(payload_bits) < payload_length:
         return b"", "paylod-too-short"
 

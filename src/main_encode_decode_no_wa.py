@@ -100,8 +100,13 @@ def decode_row(
         algorithm=encoding_decoding_algorithm,
     )
     recovered_data = recovered_data.decode("utf-8", errors="replace")
-    trimmed = recovered_data[: len(message)]
-    difference = sum(1 for a, b in zip(trimmed, message) if a != b)
+    min_len = min(len(recovered_data), len(message))
+    max_len = max(len(recovered_data), len(message))
+    trimmed_data = recovered_data[:min_len]
+    trimmed_message = message[:min_len]
+    difference = sum(1 for a, b in zip(trimmed_data, trimmed_message) if a != b) + (
+        max_len - min_len
+    )
     error_rate = difference / len(message)
     return {
         "error_rate": error_rate,
