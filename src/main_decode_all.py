@@ -5,30 +5,23 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
 from collections import Counter
 from audio.audiowaves import load_waveform_from_file
-from psk.psk_decoder import decode_from_audio
+from util.decoding import decode_and_score_message
 
 
 def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
     """Decode a single row's audio data."""
     waveform, sample_rate = load_waveform_from_file(row.get("download_path", ""))
-    message = row.get("message", "")
-    recovered_data, decode_status = decode_from_audio(
-        waveform,
-        preamble,
-        sample_rate=sample_rate,
-        frequency=int(float(row.get("frequency", -1.0))),
-        cycles_per_symbol=cycles_per_symbol,
-        algorithm=encoding_decoding_algorithm,
-    )
-    recovered_data = recovered_data.decode("utf-8", errors="replace")
-    trimmed = recovered_data[: len(message)]
-    difference = sum(1 for a, b in zip(trimmed, message) if a != b)
-    error_rate = difference / len(message)
     return {
         **row,
-        "error_rate": error_rate,
-        "decoded_data": trimmed,
-        "decode_status": decode_status,
+        **decode_and_score_message(
+            waveform,
+            sample_rate,
+            row.get("message", ""),
+            preamble,
+            int(float(row.get("frequency", -1.0))),
+            cycles_per_symbol,
+            encoding_decoding_algorithm,
+        ),
     }
 
 

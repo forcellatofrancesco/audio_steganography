@@ -20,7 +20,7 @@ import numpy as np
 
 from audio.audiowaves import load_waveform_from_file
 from main_encode import encode_from_config
-from psk.psk_decoder import decode_from_audio
+from util.decoding import decode_and_score_message
 from util import test_messages
 
 
@@ -91,28 +91,15 @@ def decode_row(
 ):
     """Decode a single row's audio data."""
     waveform, sample_rate = load_waveform_from_file(download_path)
-    recovered_data, decode_status = decode_from_audio(
+    return decode_and_score_message(
         waveform,
+        sample_rate,
+        message,
         preamble,
-        sample_rate=sample_rate,
-        frequency=frequency,
-        cycles_per_symbol=cycles_per_symbol,
-        algorithm=encoding_decoding_algorithm,
+        frequency,
+        cycles_per_symbol,
+        encoding_decoding_algorithm,
     )
-    recovered_data = recovered_data.decode("utf-8", errors="replace")
-    min_len = min(len(recovered_data), len(message))
-    max_len = max(len(recovered_data), len(message))
-    trimmed_data = recovered_data[:min_len]
-    trimmed_message = message[:min_len]
-    difference = sum(1 for a, b in zip(trimmed_data, trimmed_message) if a != b) + (
-        max_len - min_len
-    )
-    error_rate = difference / len(message)
-    return {
-        "error_rate": error_rate,
-        "decoded_data": recovered_data,
-        "decode_status": decode_status,
-    }
 
 
 def process_parameter_set(
