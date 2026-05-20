@@ -2,7 +2,7 @@
 waveform = "output/output.wav"
 message = "output/out.txt"
 automation_runs_csv = "output/automation_runs.csv"
-encode_decode_no_wa = "output/encode_decode_no_wa.csv"
+encode_decode_no_wa = "output/encode_decode_no_wa_no_end_preamble.csv"
 decoded_csv = "output/decoded.csv"
 
 [input]

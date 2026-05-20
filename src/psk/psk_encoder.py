@@ -1,6 +1,11 @@
 import numpy as np
 
-from bit_phase.bit_phase import bits_to_phase_wave, bytes_to_bits
+from bit_phase.bit_phase import bits_to_phase_wave, bytes_to_bits, int_to_bit_list
+
+# TODO: it should be added an header function:
+# - version
+# - algorithm
+# - payload length
 
 
 def encode_dbpsk_list(bits: list[int], previous_bit: int = 1) -> list[int]:
@@ -14,14 +19,16 @@ def encode_dbpsk_list(bits: list[int], previous_bit: int = 1) -> list[int]:
     return res
 
 
-def encode_bpsk(data: bytes, preamble: list[int], previous_bit: int = 1) -> list[int]:
+def encode_bpsk(data: bytes, preamble: list[int]) -> list[int]:
+    # 16 bits representing the length of the payload (like IPv4)
+    payload_length = int_to_bit_list(len(data))
     bits: list[int] = []
     # Add preamble
     bits += preamble
     # Convert bytes to list of bits
+    bits += payload_length
     bits += bytes_to_bits(data)
-    # Add preamble as ending sequence
-    bits += preamble
+
     return bits
 
 

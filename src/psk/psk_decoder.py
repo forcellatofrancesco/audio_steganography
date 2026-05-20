@@ -1,6 +1,6 @@
 import numpy as np
 
-from bit_phase.bit_phase import bit_to_phase_wave, bits_to_bytes
+from bit_phase.bit_phase import bit_to_phase_wave, bits_to_bytes, bits_to_int
 from psk.psk_encoder import encode_dbpsk_list
 
 
@@ -218,15 +218,19 @@ def decode_from_audio(
 
     if algorithm == "bpsk" and len(symbol_values) < len(preamble):
         return b"", "check-error"
-
     decoded_bits = decode_symbol_values(symbol_values, preamble, algorithm)
-
-    # Strip leading/trailing preamble
+    # Strip leading preamble
     payload_bits = decoded_bits[len(preamble) :]
-    if (
-        len(payload_bits) >= len(preamble)
-        and payload_bits[-len(preamble) :] == preamble
-    ):
-        payload_bits = payload_bits[: -len(preamble)]
+    # Check if there is the payload length
+    if len(payload_bits) < 16:
+        return b"", "no-length-in-header"
+    # Cut the payload to the right length
+    payload_length = bits_to_int(payload_bits[:16])
+    payload_bits = payload_bits[16:]
+
+    if len(payload_bits) < payload_length:
+        return b"", "paylod-too-short"
+
+    payload_bits = payload_bits[:payload_length]
 
     return bits_to_bytes(payload_bits), "valid-preamble"

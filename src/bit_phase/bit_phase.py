@@ -54,3 +54,11 @@ def bits_to_bytes(bits: list[int]) -> bytes:
             byte_values.append(current)
             current = 0
     return bytes(byte_values)
+
+
+def int_to_bit_list(x: int, bits: int = 16) -> list[int]:
+    return [(x >> (bits - 1 - i)) & 1 for i in range(bits)]
+
+
+def bits_to_int(bits: list[int]) -> int:
+    return int("".join(map(str, bits)), 2)
