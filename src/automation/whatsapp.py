@@ -216,13 +216,20 @@ class WhatsAppAutomation(SocialMediaAutomation):
                 if voice_buttons:
                     latest_button = None
                     latest_container = None
-                    latest_key = (float("-inf"), float("-inf"))
+                    latest_key = (float("-inf"), float("-inf"), float("-inf"))
                     visible_count = 0
+                    lower_band_visible_count = 0
                     new_outgoing_candidates = []
                     new_fallback_candidates = []
+                    lower_band_new_outgoing_candidates = []
+                    lower_band_new_fallback_candidates = []
                     outgoing_candidates = []
                     fallback_candidates = []
+                    lower_band_outgoing_candidates = []
+                    lower_band_fallback_candidates = []
                     page_width = (self.page.viewport_size or {}).get("width", 1366)
+                    page_height = (self.page.viewport_size or {}).get("height", 768)
+                    lower_band_y = page_height * 0.45
 
                     for button in voice_buttons:
                         try:
@@ -249,31 +256,46 @@ class WhatsAppAutomation(SocialMediaAutomation):
                             if not box:
                                 continue
 
+                            container_bottom = box["y"] + box["height"]
+                            container_center_x = box["x"] + (box["width"] / 2)
                             button_center_y = button_box["y"] + (
                                 button_box["height"] / 2
                             )
                             button_center_x = button_box["x"] + (
                                 button_box["width"] / 2
                             )
+                            is_lower_band = container_bottom >= lower_band_y
                             signature = (
                                 int(round(button_center_y)),
                                 int(round(button_center_x)),
                             )
 
                             entry = (
-                                (button_center_y, button_center_x),
+                                (container_bottom, button_center_x, container_center_x),
                                 button,
                                 container.first,
                             )
                             fallback_candidates.append(entry)
                             if signature not in previous_visible_audio_signatures:
                                 new_fallback_candidates.append(entry)
+                            if is_lower_band:
+                                lower_band_visible_count += 1
+                                lower_band_fallback_candidates.append(entry)
+                                if signature not in previous_visible_audio_signatures:
+                                    lower_band_new_fallback_candidates.append(entry)
 
-                            # Prefer outgoing (right side) messages, then latest by Y/X.
+                            # Prefer outgoing (right side) messages, then the bottom-most bubble.
                             if button_center_x > (page_width * 0.55):
                                 outgoing_candidates.append(entry)
                                 if signature not in previous_visible_audio_signatures:
                                     new_outgoing_candidates.append(entry)
+                                if is_lower_band:
+                                    lower_band_outgoing_candidates.append(entry)
+                                    if (
+                                        signature
+                                        not in previous_visible_audio_signatures
+                                    ):
+                                        lower_band_new_outgoing_candidates.append(entry)
                         except Exception:
                             continue
 
@@ -283,7 +305,11 @@ class WhatsAppAutomation(SocialMediaAutomation):
                         continue
 
                     candidates = (
-                        new_outgoing_candidates
+                        lower_band_new_outgoing_candidates
+                        or lower_band_new_fallback_candidates
+                        or lower_band_outgoing_candidates
+                        or lower_band_fallback_candidates
+                        or new_outgoing_candidates
                         or new_fallback_candidates
                         or outgoing_candidates
                         or fallback_candidates
@@ -294,10 +320,11 @@ class WhatsAppAutomation(SocialMediaAutomation):
                         )
 
                     if latest_container is not None and latest_button is not None:
+                        selected_bottom = latest_key[0]
                         print(
                             "Found new audio message; selecting latest "
-                            f"{'new outgoing' if new_outgoing_candidates else ('new visible' if new_fallback_candidates else ('outgoing' if outgoing_candidates else 'visible'))} audio button "
-                            f"(visible={visible_count}, previous={previous_visible_audio_count}, y={latest_key[0]:.1f})..."
+                            f"{'new outgoing' if lower_band_new_outgoing_candidates else ('new visible' if lower_band_new_fallback_candidates else ('outgoing' if lower_band_outgoing_candidates else ('visible' if lower_band_fallback_candidates else ('new outgoing' if new_outgoing_candidates else ('new visible' if new_fallback_candidates else ('outgoing' if outgoing_candidates else 'visible'))))))} audio button "
+                            f"(visible={visible_count}, lower_band={lower_band_visible_count}, previous={previous_visible_audio_count}, bottom={selected_bottom:.1f})..."
                         )
                         latest_button.scroll_into_view_if_needed()
                         latest_container.scroll_into_view_if_needed()
@@ -318,7 +345,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
     def _find_and_click_download(
         self, audio_container, audio_button, output_dir: Path
     ) -> str:
-        """Right-click the center of latest audio bubble and click download."""
+        """Right-click near the bottom of the latest audio bubble and click download."""
         deadline = time.monotonic() + 15
         print("Opening context menu on latest audio message...")
 
@@ -343,25 +370,24 @@ class WhatsAppAutomation(SocialMediaAutomation):
                 except Exception:
                     button_box = None
 
-                # Target bubble center. If container is too tall, anchor Y to audio controls.
-                center_x = container_box["x"] + (container_box["width"] / 2)
-                center_y = container_box["y"] + (container_box["height"] / 2)
-                if button_box and container_box["height"] > (
-                    button_box["height"] * 2.0
-                ):
-                    center_y = button_box["y"] + (button_box["height"] / 2)
+                # The chat viewport is stable, so aim at a fixed point near the
+                # lower-right of the bubble to consistently hit the latest sent audio.
+                click_x = container_box["x"] + container_box["width"] - 24
+                click_y = container_box["y"] + container_box["height"] - 12
 
-                click_offsets = [
-                    (0.0, 0.0),
-                    (10.0, 0.0),
-                    (-10.0, 0.0),
-                    (0.0, 8.0),
-                    (0.0, -8.0),
-                ]
-                offset_x, offset_y = click_offsets[(attempt - 1) % len(click_offsets)]
+                if button_box and button_box["width"] > 0:
+                    click_x = max(
+                        container_box["x"] + 2,
+                        min(
+                            container_box["x"] + container_box["width"] - 2,
+                            button_box["x"] + button_box["width"] - 6,
+                        ),
+                    )
 
-                click_x = center_x + offset_x
-                click_y = center_y + offset_y
+                if attempt % 2 == 0:
+                    click_x -= 4
+                elif attempt % 3 == 0:
+                    click_x += 4
 
                 # Clamp inside bubble bounds.
                 click_x = max(
