@@ -228,7 +228,7 @@ def decode_from_audio(
     payload_length = bits_to_int(payload_bits[:16]) * 8
     payload_bits = payload_bits[16:]
     if len(payload_bits) < payload_length:
-        return b"", "paylod-too-short"
+        return bits_to_bytes(payload_bits), "paylod-too-short"
 
     payload_bits = payload_bits[:payload_length]
 
