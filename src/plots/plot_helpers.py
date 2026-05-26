@@ -632,21 +632,21 @@ def print_error_comparison(
     worse = difference.where(difference > 0)
     equal = difference.where(difference == 0)
     better = difference.where(difference < 0)
-    print(f"Mean error {first}: {df_first['error_rate'].mean()}")
-    print(f"Mean error {second}: {df_second['error_rate'].mean()}")
-    print(f"Variance error {first}: {df_first['error_rate'].var()}")
-    print(f"Variance error {second}: {df_second['error_rate'].var()}")
+    print(f"Mean error {first}: {round(df_first['error_rate'].mean(),4)}")
+    print(f"Mean error {second}: {round(df_second['error_rate'].mean(),4)}")
+    print(f"Variance error {first}: {round(df_first['error_rate'].var(),4)}")
+    print(f"Variance error {second}: {round(df_second['error_rate'].var(),4)}")
     print()
     print(
-        f"{first} is better than {second}: {better.count()}, {better.count()/length*100.0}%"
+        f"{first} is better than {second}: {better.count()}, {round(better.count()/length*100.0,4)}%"
     )
     print(
-        f"{first} is equal to {second}: {equal.count()}, {equal.count()/length*100.0}%"
+        f"{first} is equal to {second}: {equal.count()}, {round(equal.count()/length*100.0,4)}%"
     )
     print(
-        f"{first} is worse than {second}: {worse.count()}, {worse.count()/length*100.0}%"
+        f"{first} is worse than {second}: {worse.count()}, {round(worse.count()/length*100.0,4)}%"
     )
-    print(f"Mean improvement: {better.mean()}")
-    print(f"Improvement variance: {better.var()}")
-    print(f"Mean worsening: {worse.mean()}")
-    print(f"Worsening variance: {worse.var()}")
+    print(f"Mean improvement: {round(better.mean(),4)}")
+    print(f"Improvement variance: {round(better.var(),4)}")
+    print(f"Mean worsening: {round(worse.mean(),4)}")
+    print(f"Worsening variance: {round(worse.var(),4)}")
