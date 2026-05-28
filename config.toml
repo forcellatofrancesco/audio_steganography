@@ -14,7 +14,7 @@ message = "input/message.txt"
 sample_rate = 48000
 frequency = 200
 high_pass_filter = 250
-cycles_per_symbol = 2
+cycles_per_symbol = 8
 volume_gain_data = 0.15
 volume_gain_voice = 1.0
 volume_noise = 0.01
@@ -26,7 +26,7 @@ preamble = [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0] # Barker sequence [+1, +1, +1
 # Available encoding - decoding algorithms:
 # - bpsk  = bit phase shift keying
 # - dbpsk = differential bit phase shift keying
-encoding_decoding = "dbpsk"
+encoding_decoding = "bpsk"
 # Optional: set an integer seed to make audio shuffle and noise generation deterministic.
 shuffle_seed = 12345
 

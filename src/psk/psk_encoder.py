@@ -1,11 +1,15 @@
 import numpy as np
 
-from bit_phase.bit_phase import bits_to_phase_wave, bytes_to_bits, int_to_bit_list
+from bit_phase.bit_phase import bits_to_phase_wave, bytes_to_bits
+from psk.ecc import (
+    ECC_SCHEME_HAMMING_7_4,
+    MAX_PAYLOAD_LENGTH_BYTES,
+    build_header_bits,
+    encode_hamming_7_4,
+    pad_bits,
+)
 
-# TODO: it should be added an header function:
-# - version
-# - algorithm
-# - payload length
+# Header contains version, ECC scheme, and payload length (bytes).
 
 
 def encode_dbpsk_list(bits: list[int], previous_bit: int = 1) -> list[int]:
@@ -20,14 +24,18 @@ def encode_dbpsk_list(bits: list[int], previous_bit: int = 1) -> list[int]:
 
 
 def encode_bpsk(data: bytes, preamble: list[int]) -> list[int]:
-    # 16 bits representing the length of the payload (like IPv4)
-    payload_length = int_to_bit_list(len(data))
+    payload_length_bytes = len(data)
+    if payload_length_bytes > MAX_PAYLOAD_LENGTH_BYTES:
+        raise ValueError("payload length exceeds header limits.")
+    header_bits = build_header_bits(payload_length_bytes, ECC_SCHEME_HAMMING_7_4)
+    header_bits = encode_hamming_7_4(header_bits)
+    payload_bits, _ = pad_bits(bytes_to_bits(data), 4)
+    payload_bits = encode_hamming_7_4(payload_bits)
     bits: list[int] = []
     # Add preamble
     bits += preamble
-    # Convert bytes to list of bits
-    bits += payload_length
-    bits += bytes_to_bits(data)
+    bits += header_bits
+    bits += payload_bits
 
     return bits
 

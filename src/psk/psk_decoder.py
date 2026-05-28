@@ -1,6 +1,15 @@
 import numpy as np
 
-from bit_phase.bit_phase import bit_to_phase_wave, bits_to_bytes, bits_to_int
+from bit_phase.bit_phase import bit_to_phase_wave, bits_to_bytes
+from psk.ecc import (
+    ECC_SCHEME_HAMMING_7_4,
+    ECC_SCHEME_NONE,
+    ENCODED_HEADER_BITS,
+    HEADER_DATA_BITS,
+    HEADER_VERSION,
+    decode_hamming_7_4,
+    parse_header_bits,
+)
 from psk.psk_encoder import encode_dbpsk_list
 
 
@@ -221,15 +230,29 @@ def decode_from_audio(
     decoded_bits = decode_symbol_values(symbol_values, preamble, algorithm)
     # Strip leading preamble
     payload_bits = decoded_bits[len(preamble) :]
-    # Check if there is the payload length
-    if len(payload_bits) < 16:
-        return b"", "no-length-in-header"
-    # Cut the payload to the right length
-    payload_length = bits_to_int(payload_bits[:16]) * 8
-    payload_bits = payload_bits[16:]
-    if len(payload_bits) < payload_length:
-        return bits_to_bytes(payload_bits), "paylod-too-short"
+    if len(payload_bits) < ENCODED_HEADER_BITS:
+        return b"", "no-header-in-payload"
 
-    payload_bits = payload_bits[:payload_length]
+    header_bits, _ = decode_hamming_7_4(payload_bits[:ENCODED_HEADER_BITS])
+    if len(header_bits) < HEADER_DATA_BITS:
+        return b"", "no-header-in-payload"
 
-    return bits_to_bytes(payload_bits), "valid-preamble"
+    version, ecc_scheme, payload_length_bytes = parse_header_bits(header_bits)
+    if version != HEADER_VERSION:
+        return b"", "unsupported-header-version"
+    if ecc_scheme not in {ECC_SCHEME_NONE, ECC_SCHEME_HAMMING_7_4}:
+        return b"", "unsupported-ecc-scheme"
+
+    payload_bits = payload_bits[ENCODED_HEADER_BITS:]
+    if ecc_scheme == ECC_SCHEME_NONE:
+        decoded_payload_bits = payload_bits
+    else:
+        decoded_payload_bits, _ = decode_hamming_7_4(payload_bits)
+
+    payload_length_bits = payload_length_bytes * 8
+    if len(decoded_payload_bits) < payload_length_bits:
+        return bits_to_bytes(decoded_payload_bits), "paylod-too-short"
+
+    decoded_payload_bits = decoded_payload_bits[:payload_length_bits]
+
+    return bits_to_bytes(decoded_payload_bits), "valid-preamble"
