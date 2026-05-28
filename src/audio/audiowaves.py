@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.signal import resample_poly, butter, sosfilt, sosfiltfilt
+from scipy.signal import resample_poly, butter, sosfiltfilt
 import os
 import subprocess
 import tempfile
@@ -90,9 +90,6 @@ def change_waveform_volume(waveform: np.ndarray, gain: float) -> np.ndarray:
     Raises:
             ValueError: If waveform is not 1D, or gain is negative/non-finite.
     """
-    # If gain == 1, then no change is needed
-    if math.isclose(gain, 1.0):
-        return waveform
     waveform = np.asarray(waveform)
     if waveform.ndim != 1:
         raise ValueError("waveform must be a 1D array.")
@@ -100,8 +97,12 @@ def change_waveform_volume(waveform: np.ndarray, gain: float) -> np.ndarray:
         raise ValueError("gain must be a finite, non-negative number.")
     if waveform.size == 0:
         return np.array([], dtype=np.float32)
+    waveform = waveform.astype(np.float32, copy=False)
+    # Gain-only scaling keeps phase alignment intact.
+    if math.isclose(gain, 1.0):
+        return waveform
 
-    return (waveform.astype(np.float32) * gain).astype(np.float32, copy=False)
+    return (waveform * np.float32(gain)).astype(np.float32, copy=False)
 
 
 def generate_white_noise(
@@ -186,13 +187,18 @@ def apply_low_pass_filter(
 
     waveform = waveform.astype(np.float32)
     sos = butter(order, high_frequency, btype="low", fs=sample_rate, output="sos")
+    sos = np.asarray(sos)
 
-    # filtfilt may fail for very short signals because of internal padding.
-    try:
-        filtered = sosfiltfilt(sos, waveform)
-    except ValueError:
-        filtered = sosfilt(sos, waveform)
+    # Use zero-phase filtering and cap padding for short signals to avoid phase shift.
+    padlen = 0
+    if waveform.size > 1:
+        max_padlen = waveform.size - 1
+        # sos is (n_sections, 6); default padding is 3x filter order
+        n_sections = sos.shape[0]
+        default_padlen = 3 * (2 * n_sections)
+        padlen = int(min(default_padlen, max_padlen))
 
+    filtered = sosfiltfilt(sos, waveform, padlen=padlen)
     if isinstance(filtered, tuple):
         filtered = filtered[0]
 

@@ -2,7 +2,7 @@
 waveform = "output/output.wav"
 message = "output/out.txt"
 automation_runs_csv = "output/automation_runs.csv"
-encode_decode_no_wa = "output/encode_decode_no_wa.csv"
+encode_decode_no_wa = "output/encode_decode_no_wa_bpsk_4.csv"
 decoded_csv = "output/decoded.csv"
 
 [input]
@@ -14,7 +14,7 @@ message = "input/message.txt"
 sample_rate = 48000
 frequency = 200
 high_pass_filter = 250
-cycles_per_symbol = 8
+cycles_per_symbol = 4
 volume_gain_data = 0.15
 volume_gain_voice = 1.0
 volume_noise = 0.01

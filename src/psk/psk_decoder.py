@@ -28,37 +28,57 @@ def decode_symbol_values(
             previous_phase = phase
     elif algorithm == "bpsk":
         eps = 1e-12
-        normalized_symbols = [value / (np.abs(value) + eps) for value in symbol_values]
+        if len(symbol_values) == 0:
+            return []
 
-        preamble_symbols = normalized_symbols[: len(preamble)]
-        ref0_symbols = [
-            symbol for bit, symbol in zip(preamble, preamble_symbols) if bit == 0
-        ]
-        ref1_symbols = [
-            symbol for bit, symbol in zip(preamble, preamble_symbols) if bit == 1
-        ]
+        normalized_symbols = np.asarray(
+            [value / (np.abs(value) + eps) for value in symbol_values],
+            dtype=np.complex128,
+        )
+        preamble_len = min(len(preamble), normalized_symbols.size)
+        preamble_symbols = normalized_symbols[:preamble_len]
+        if preamble_len:
+            bit_signs = np.array(
+                [1.0 if bit == 0 else -1.0 for bit in preamble[:preamble_len]],
+                dtype=np.float64,
+            )
+            ref = np.sum(preamble_symbols * bit_signs)
+        else:
+            ref = 0.0
 
-        ref0 = np.mean(ref0_symbols) if ref0_symbols else None
-        ref1 = np.mean(ref1_symbols) if ref1_symbols else None
+        if np.abs(ref) >= eps:
+            ref = ref / (np.abs(ref) + eps)
+            for symbol in normalized_symbols:
+                score = np.real(symbol * np.conj(ref))
+                decoded_bits.append(0 if score >= 0 else 1)
+        else:
+            ref0_symbols = [
+                symbol for bit, symbol in zip(preamble, preamble_symbols) if bit == 0
+            ]
+            ref1_symbols = [
+                symbol for bit, symbol in zip(preamble, preamble_symbols) if bit == 1
+            ]
+            ref0 = np.mean(ref0_symbols) if ref0_symbols else None
+            ref1 = np.mean(ref1_symbols) if ref1_symbols else None
 
-        if ref0 is not None:
-            ref0 = ref0 / (np.abs(ref0) + eps)
-        if ref1 is not None:
-            ref1 = ref1 / (np.abs(ref1) + eps)
+            if ref0 is not None:
+                ref0 = ref0 / (np.abs(ref0) + eps)
+            if ref1 is not None:
+                ref1 = ref1 / (np.abs(ref1) + eps)
 
-        for symbol in normalized_symbols:
-            if ref0 is not None and ref1 is not None:
-                score0 = np.real(symbol * np.conj(ref0))
-                score1 = np.real(symbol * np.conj(ref1))
-                decoded_bits.append(0 if score0 >= score1 else 1)
-            elif ref0 is not None:
-                score0 = np.real(symbol * np.conj(ref0))
-                decoded_bits.append(0 if score0 >= 0 else 1)
-            elif ref1 is not None:
-                score1 = np.real(symbol * np.conj(ref1))
-                decoded_bits.append(1 if score1 >= 0 else 0)
-            else:
-                decoded_bits.append(0)
+            for symbol in normalized_symbols:
+                if ref0 is not None and ref1 is not None:
+                    score0 = np.real(symbol * np.conj(ref0))
+                    score1 = np.real(symbol * np.conj(ref1))
+                    decoded_bits.append(0 if score0 >= score1 else 1)
+                elif ref0 is not None:
+                    score0 = np.real(symbol * np.conj(ref0))
+                    decoded_bits.append(0 if score0 >= 0 else 1)
+                elif ref1 is not None:
+                    score1 = np.real(symbol * np.conj(ref1))
+                    decoded_bits.append(1 if score1 >= 0 else 0)
+                else:
+                    decoded_bits.append(0)
     else:
         raise ValueError(algorithm, "algorithm not recognized")
 
