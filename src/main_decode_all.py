@@ -6,6 +6,7 @@ from itertools import repeat
 from collections import Counter
 
 from audio.audiowaves import load_waveform_from_file
+from audio.audio_config import AudioConfigFactory
 from util.decoding import decode_and_score_message
 
 
@@ -47,7 +48,9 @@ def main():
     config = load_config_file(Path("config.toml"))
     encoding_decoding_algorithm = config["algorithm"]["encoding_decoding"]
     preamble = config["sync"]["preamble"]
-    cycles_per_symbol = config["audio"]["cycles_per_symbol"]
+    
+    audio_config = AudioConfigFactory().create()
+    cycles_per_symbol = audio_config.cycles_per_symbol
 
     input_path = config["output"]["automation_runs_csv"]
     output_path = config["output"]["decoded_csv"]
