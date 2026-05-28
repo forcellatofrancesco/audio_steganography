@@ -1,9 +1,9 @@
 [output]
 waveform = "output/output.wav"
 message = "output/out.txt"
-automation_runs_csv = "output/automation_runs.csv"
+automation_runs_csv = "output/automation_runs_ecc_bpsk.csv"
 encode_decode_no_wa = "output/encode_decode_no_wa_bpsk_4.csv"
-decoded_csv = "output/decoded.csv"
+decoded_csv = "output/decoded_ecc_bpsk.csv"
 
 [input]
 # waveform = "output/out.ogg"

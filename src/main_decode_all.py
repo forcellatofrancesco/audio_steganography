@@ -1,11 +1,29 @@
 import tomllib
-
 import csv
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
 from collections import Counter
+
 from audio.audiowaves import load_waveform_from_file
 from util.decoding import decode_and_score_message
+
+
+def load_config_file(config_path: Path) -> dict:
+    """Load the TOML configuration file."""
+    with config_path.open("rb") as config_file:
+        return tomllib.load(config_file)
+
+
+def report_progress(completed: int, total: int, last_printed: int) -> int:
+    """Print progress when the integer percentage changes."""
+    if total <= 0:
+        return last_printed
+    current = int(100 * completed / total)
+    if current > last_printed:
+        print(f"Progress: {current}% ({completed}/{total})")
+        return current
+    return last_printed
 
 
 def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
@@ -26,21 +44,16 @@ def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
 
 
 def main():
-    with open("config.toml", "rb") as f:
-        config = tomllib.load(f)
+    config = load_config_file(Path("config.toml"))
     encoding_decoding_algorithm = config["algorithm"]["encoding_decoding"]
     preamble = config["sync"]["preamble"]
     cycles_per_symbol = config["audio"]["cycles_per_symbol"]
-    with open(
-        config["output"]["automation_runs_csv"],
-        "r",
-        newline="",
-        encoding="utf-8",
-    ) as csv_input, open(
-        config["output"]["decoded_csv"],
-        "w",
-        newline="",
-        encoding="utf-8",
+
+    input_path = config["output"]["automation_runs_csv"]
+    output_path = config["output"]["decoded_csv"]
+
+    with open(input_path, "r", newline="", encoding="utf-8") as csv_input, open(
+        output_path, "w", newline="", encoding="utf-8"
     ) as csv_out:
         keys = [
             "frequency",
@@ -64,16 +77,14 @@ def main():
         }
         if duplicated_paths:
             print(
-                "Warning: duplicate download_path values found. "
-                "Some rows likely reference overwritten files. "
-                f"Duplicated paths: {len(duplicated_paths)}"
+                "Warning: duplicate download_path values found. Some rows likely reference overwritten files."
+                f" Duplicated paths: {len(duplicated_paths)}"
             )
 
         total_rows = len(rows)
-        last_printed_percentage = -1
+        last_printed = -1
 
         with ThreadPoolExecutor(max_workers=24) as executor:
-            # map() automatically maintains order
             for idx, result in enumerate(
                 executor.map(
                     decode_row,
@@ -85,14 +96,9 @@ def main():
                 1,
             ):
                 writer.writerow(result)
+                csv_out.flush()
 
-                # Print progress only when percentage point changes
-                current_percentage = int(100 * idx / total_rows)
-                if current_percentage > last_printed_percentage:
-                    print(f"Progress: {current_percentage}% ({idx}/{total_rows})")
-                    last_printed_percentage = current_percentage
-
-            csv_out.flush()
+                last_printed = report_progress(idx, total_rows, last_printed)
 
 
 if __name__ == "__main__":
