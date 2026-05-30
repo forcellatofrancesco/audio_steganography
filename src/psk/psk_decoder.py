@@ -154,13 +154,13 @@ def detect_preamble(
         return 0, False
 
     # Fast sliding matched filter.
-    raw_scores = np.correlate(candidate, expected_analytic, mode="valid")
+    raw_scores = np.correlate(candidate, expected_analytic, mode="same")
     template_energy = np.sum(np.abs(expected_analytic) ** 2)
     if template_energy == 0:
         return 0, False
 
     candidate_power = np.abs(candidate) ** 2
-    candidate_energy = np.convolve(candidate_power, np.ones(win_len), mode="valid")
+    candidate_energy = np.convolve(candidate_power, np.ones(win_len), mode="same")
     denom = np.sqrt(candidate_energy * template_energy)
     scores = np.divide(
         raw_scores,
@@ -173,6 +173,7 @@ def detect_preamble(
     best = int(np.argmax(np.abs(scores)))
 
     # Deterministically verify the preamble by decoding it bit-by-bit
+    best = best - expected_analytic.shape[0] // 2
     trimmed_waveform = np.asarray(waveform[best:], dtype=np.float64)
 
     if trimmed_waveform.size < samples_per_symbol * len(encoded_preamble):
@@ -193,7 +194,6 @@ def detect_preamble(
     # Compare decoded preamble with the original preamble
     decoded_bits = decode_symbol_values(symbol_values, preamble, algorithm)
     detected = decoded_bits == preamble
-
     return best, detected
 
 

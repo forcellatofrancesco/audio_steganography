@@ -356,7 +356,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
             attempt += 1
 
             try:
-                audio_container.wait_for(state="visible", timeout=1_500)
+                audio_container.wait_for(state="visible", timeout=1000)
                 audio_container.scroll_into_view_if_needed()
 
                 container_box = audio_container.bounding_box()
@@ -412,7 +412,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
                     menu_item.wait_for(state="visible", timeout=600)
 
                     with self.page.expect_download(timeout=3_000) as download_info:
-                        menu_item.click(timeout=1_000)
+                        menu_item.click(timeout=500)
 
                     download = download_info.value
                     print(f"Clicked menu item for download: {selector}")

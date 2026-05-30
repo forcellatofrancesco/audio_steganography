@@ -2,8 +2,8 @@
 waveform = "output/output.wav"
 message = "output/out.txt"
 automation_runs_csv = "output/automation_runs_ecc_dbpsk.csv"
-encode_decode_no_wa = "output/encode_decode_no_wa_dbpsk_4.csv"
-decoded_csv = "output/decoded_ecc_dbpsk.csv"
+encode_decode_no_wa = "output/prova.csv"
+decoded_csv = "output/prova_nuova.csv"
 
 [input]
 # waveform = "output/out.ogg"
@@ -14,7 +14,7 @@ message = "input/message.txt"
 sample_rate = 48000
 frequency = 200
 high_pass_filter = 250
-cycles_per_symbol = 4
+cycles_per_symbol = 2
 volume_gain_data = 0.15
 volume_gain_voice = 1.0
 volume_noise = 0.01

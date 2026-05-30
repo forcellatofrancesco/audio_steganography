@@ -223,11 +223,13 @@ def load_waveform_from_file(filename):
     temp_wav_path = None
 
     file_ext = os.path.splitext(filename)[1].lower()
+    invert: bool = False
     if file_ext not in {".wav", ".wave"}:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
             temp_wav_path = tmp_wav.name
         _convert_audio_via_ffmpeg(filename, temp_wav_path)
         source_path = temp_wav_path
+        invert = True
 
     try:
         with wave.open(source_path, "rb") as wf:
@@ -254,7 +256,8 @@ def load_waveform_from_file(filename):
 
         if channels > 1:
             data = data.reshape(-1, channels).mean(axis=1)
-
+        if invert:
+            data = -data
         return data, sample_rate
     finally:
         if temp_wav_path and os.path.exists(temp_wav_path):

@@ -48,7 +48,7 @@ def main():
     config = load_config_file(Path("config.toml"))
     encoding_decoding_algorithm = config["algorithm"]["encoding_decoding"]
     preamble = config["sync"]["preamble"]
-    
+
     audio_config = AudioConfigFactory().create()
     cycles_per_symbol = audio_config.cycles_per_symbol
 
