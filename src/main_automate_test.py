@@ -37,11 +37,105 @@ def _params_key(params: dict[str, Any], keys: list[str]) -> tuple[str, ...]:
     return tuple(_normalize_param(params[k]) for k in keys)
 
 
+def _run_parameter_grid(
+    automation: WhatsAppAutomation,
+    config_file: dict[str, Any],
+    preamble: list[int],
+    algorithm: str,
+    csv_output_path: Path,
+) -> None:
+    """Run the full parameter grid for a single encoding algorithm."""
+    print(f"Starting {algorithm} run. CSV output: {csv_output_path}")
+
+    param_grid = {
+        "frequency": np.linspace(150, 400, num=10).astype(int),
+        "volume_gain_data": np.linspace(0.15, 1.0, num=10),
+        "message": test_messages.messages,
+    }
+    keys = list(param_grid.keys())
+    values = list(param_grid.values())
+    total = sum(1 for _ in itertools.product(*values))
+
+    csv_output_path.parent.mkdir(parents=True, exist_ok=True)
+    csv_exists = csv_output_path.exists()
+
+    completed_keys: set[tuple[str, ...]] = set()
+    if csv_exists:
+        with csv_output_path.open("r", newline="", encoding="utf-8") as csv_file:
+            reader = csv.DictReader(csv_file)
+            for row in reader:
+                if row.get("status", "").strip().lower() != "success":
+                    continue
+                if not all(k in row for k in keys):
+                    continue
+                completed_keys.add(tuple(_normalize_param(row[k]) for k in keys))
+
+    print(
+        f"Resume status for {algorithm}: {len(completed_keys)}/{total} parameter sets already completed."
+    )
+    with csv_output_path.open("a", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(
+            csv_file,
+            fieldnames=[*keys, "volume_noise", "download_path", "status"],
+        )
+        if not csv_exists:
+            writer.writeheader()
+        percentage = 0.0
+        for combo in itertools.product(*values):
+            params = dict(zip(keys, combo))
+            current_key = _params_key(params, keys)
+            if current_key in completed_keys:
+                continue
+            p = len(completed_keys) / total * 100.0
+            if p > percentage + 1.0:
+                percentage = p
+                print(f"Completed {algorithm}: {p}%")
+            try:
+                audio_config = AudioConfig(
+                    frequency=params["frequency"],
+                    high_pass_filter=params["frequency"] + 50,
+                    volume_gain_data=params["volume_gain_data"],
+                )
+                byte_data = params["message"].encode("utf-8")
+                encode_from_config(
+                    byte_data,
+                    preamble,
+                    algorithm,
+                    config_file["dataset"]["directory"],
+                    config_file["output"]["waveform"],
+                    config_file["algorithm"].get("shuffle_seed"),
+                    audio_config,
+                )
+                downloaded_path = automation.run()
+
+                writer.writerow(
+                    {
+                        **params,
+                        "volume_noise": audio_config.volume_noise,
+                        "download_path": (
+                            str(downloaded_path) if downloaded_path else ""
+                        ),
+                        "status": "success",
+                    }
+                )
+                csv_file.flush()
+                completed_keys.add(current_key)
+            except Exception:
+                writer.writerow(
+                    {
+                        **params,
+                        "download_path": "",
+                        "status": "failed",
+                    }
+                )
+                csv_file.flush()
+                raise
+
+
 def main():
     config_file = None
     with open("config.toml", "rb") as f:
         config_file = tomllib.load(f)
-    encoding_decoding_algorithm = config_file["algorithm"]["encoding_decoding"]
     preamble: list[int] = config_file["sync"]["preamble"]
 
     # Load WhatsApp configuration (edit config.toml to customize)
@@ -53,7 +147,14 @@ def main():
         context = p.chromium.launch_persistent_context(
             user_data_dir=str(config.profile_dir),
             headless=config.headless,
-            args=["--start-maximized"],
+            args=[
+                "--start-maximized",
+                # Disable default browser audio processing
+                "--goog-echo-cancellation=false",
+                "--goog-auto-gain-control=false",
+                "--goog-noise-suppression=false",
+                "--goog-highpass-filter=false",
+            ],
             viewport={"width": 1270, "height": 720},
         )
 
@@ -65,97 +166,27 @@ def main():
             print("Waiting for WhatsApp Web. Scan QR code if prompted...")
             automation.load_main_ui()
 
-            print("Now open the target chat manually.")
-            print("Waiting for the recording button to appear...")
-            param_grid = {
-                "frequency": np.linspace(150, 400, num=10).astype(int),
-                "volume_gain_data": np.linspace(0.15, 1.0, num=10),
-                "message": test_messages.messages,
-            }
-            keys = list(param_grid.keys())
-            values = list(param_grid.values())
-            total = sum(1 for _ in itertools.product(*values))
+            print("Now open the target chat manually once, then leave it open.")
+            print("The script will run DBPSK first and then BPSK in the same chat.")
 
-            csv_output_path = Path(config_file["output"]["automation_runs_csv"])
-            csv_output_path.parent.mkdir(parents=True, exist_ok=True)
-            csv_exists = csv_output_path.exists()
+            automation_runs = [
+                ("dbpsk", Path(config_file["output"]["automation_runs_csv"])),
+                (
+                    "bpsk",
+                    Path(config_file["output"]["automation_runs_csv"]).with_name(
+                        "automation_runs_bpsk.csv"
+                    ),
+                ),
+            ]
 
-            completed_keys: set[tuple[str, ...]] = set()
-            if csv_exists:
-                with csv_output_path.open(
-                    "r", newline="", encoding="utf-8"
-                ) as csv_file:
-                    reader = csv.DictReader(csv_file)
-                    for row in reader:
-                        if row.get("status", "").strip().lower() != "success":
-                            continue
-                        if not all(k in row for k in keys):
-                            continue
-                        completed_keys.add(
-                            tuple(_normalize_param(row[k]) for k in keys)
-                        )
-
-            print(
-                f"Resume status: {len(completed_keys)}/{total} parameter sets already completed."
-            )
-            with csv_output_path.open("a", newline="", encoding="utf-8") as csv_file:
-                writer = csv.DictWriter(
-                    csv_file,
-                    fieldnames=[*keys, "volume_noise", "download_path", "status"],
+            for algorithm, csv_output_path in automation_runs:
+                _run_parameter_grid(
+                    automation,
+                    config_file,
+                    preamble,
+                    algorithm,
+                    csv_output_path,
                 )
-                if not csv_exists:
-                    writer.writeheader()
-                percentage = 0.0
-                for combo in itertools.product(*values):
-                    params = dict(zip(keys, combo))
-                    current_key = _params_key(params, keys)
-                    if current_key in completed_keys:
-                        continue
-                    p = len(completed_keys) / total * 100.0
-                    if p > percentage + 1.0:
-                        percentage = p
-                        print(f"Completed: {p}%")
-                    try:
-                        audio_config = AudioConfig(
-                            frequency=params["frequency"],
-                            high_pass_filter=params["frequency"] + 50,
-                            volume_gain_data=params["volume_gain_data"],
-                        )
-                        byte_data = params["message"].encode("utf-8")
-                        encode_from_config(
-                            byte_data,
-                            preamble,
-                            encoding_decoding_algorithm,
-                            config_file["dataset"]["directory"],
-                            config_file["output"]["waveform"],
-                            config_file["algorithm"].get("shuffle_seed"),
-                            audio_config,
-                        )
-                        # Execute the complete workflow
-                        downloaded_path = automation.run()
-
-                        writer.writerow(
-                            {
-                                **params,
-                                "volume_noise": audio_config.volume_noise,
-                                "download_path": (
-                                    str(downloaded_path) if downloaded_path else ""
-                                ),
-                                "status": "success",
-                            }
-                        )
-                        csv_file.flush()
-                        completed_keys.add(current_key)
-                    except Exception:
-                        writer.writerow(
-                            {
-                                **params,
-                                "download_path": "",
-                                "status": "failed",
-                            }
-                        )
-                        csv_file.flush()
-                        raise
 
             # Handle post-completion behavior
             if config.keep_open:
