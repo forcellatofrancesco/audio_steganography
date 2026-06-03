@@ -1,9 +1,9 @@
 [output]
 waveform = "output/output.wav"
 message = "output/out.txt"
-automation_runs_csv = "output/automation_runs_ecc_dbpsk.csv"
+automation_runs_csv = "output/260530_bpsk_ecc.csv"
 encode_decode_no_wa = "output/prova.csv"
-decoded_csv = "output/prova_nuova.csv"
+decoded_csv = "output/zzz.csv"
 
 [input]
 # waveform = "output/out.ogg"
@@ -26,7 +26,7 @@ preamble = [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0] # Barker sequence [+1, +1, +1
 # Available encoding - decoding algorithms:
 # - bpsk  = bit phase shift keying
 # - dbpsk = differential bit phase shift keying
-encoding_decoding = "dbpsk"
+encoding_decoding = "bpsk"
 # Optional: set an integer seed to make audio shuffle and noise generation deterministic.
 shuffle_seed = 12345
 
@@ -49,4 +49,4 @@ send_button_wait_timeout_ms = 20000
 post_send_settle_delay_ms = 1250
 download_wait_timeout_ms = 30000
 playback_script_path = "src/util/scripts/virtual_microphone/play_mic.sh"
-download_output_path = "output/whatsaudio"
+download_output_path = "output/260530_whatsaudio"

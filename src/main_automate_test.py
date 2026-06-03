@@ -170,12 +170,13 @@ def main():
             print("The script will run DBPSK first and then BPSK in the same chat.")
 
             automation_runs = [
-                ("dbpsk", Path(config_file["output"]["automation_runs_csv"])),
+                (
+                    "dbpsk",
+                    Path("output/260530_dbpsk_ecc.csv"),
+                ),
                 (
                     "bpsk",
-                    Path(config_file["output"]["automation_runs_csv"]).with_name(
-                        "automation_runs_bpsk.csv"
-                    ),
+                    Path("output/260530_bpsk_ecc.csv"),
                 ),
             ]
 
