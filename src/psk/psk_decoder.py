@@ -171,30 +171,33 @@ def detect_preamble(
 
     # pick the offset with maximum absolute normalized inner product
     best = int(np.argmax(np.abs(scores)))
-
-    # Deterministically verify the preamble by decoding it bit-by-bit
     best = best - expected_analytic.shape[0] // 2
     trimmed_waveform = np.asarray(waveform[best:], dtype=np.float64)
+    if algorithm == "bpsk":
+        t = 1 / frequency * cycles_per_symbol
+        res = np.angle(trimmed_waveform * np.exp(-1j * 2 * np.pi * frequency * t))
+        print(f"t: {t}\nres={res}")
 
-    if trimmed_waveform.size < samples_per_symbol * len(encoded_preamble):
-        return best, False
+    return best, True  # TODO: detected
+    # if trimmed_waveform.size < samples_per_symbol * len(encoded_preamble):
+    #     return best, False
 
-    # Extract symbols from the preamble region
-    symbol_values = []
-    for i in range(len(encoded_preamble)):
-        start = i * samples_per_symbol
-        end = start + samples_per_symbol
-        segment = trimmed_waveform[start:end]
-        if segment.size < samples_per_symbol:
-            return best, False
-        t = np.arange(samples_per_symbol) / sample_rate
-        mixed = segment * np.exp(-1j * 2 * np.pi * frequency * t)
-        symbol_values.append(np.sum(mixed) / samples_per_symbol)
+    # # Extract symbols from the preamble region
+    # symbol_values = []
+    # for i in range(len(encoded_preamble)):
+    #     start = i * samples_per_symbol
+    #     end = start + samples_per_symbol
+    #     segment = trimmed_waveform[start:end]
+    #     if segment.size < samples_per_symbol:
+    #         return best, False
+    #     t = np.arange(samples_per_symbol) / sample_rate
+    #     mixed = segment * np.exp(-1j * 2 * np.pi * frequency * t)
+    #     symbol_values.append(np.sum(mixed) / samples_per_symbol)
 
-    # Compare decoded preamble with the original preamble
-    decoded_bits = decode_symbol_values(symbol_values, preamble, algorithm)
-    detected = decoded_bits == preamble
-    return best, detected
+    # # Compare decoded preamble with the original preamble
+    # decoded_bits = decode_symbol_values(symbol_values, preamble, algorithm)
+    # detected = decoded_bits == preamble
+    # return best, detected
 
 
 def decode_from_audio(
