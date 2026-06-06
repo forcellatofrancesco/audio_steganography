@@ -1,9 +1,10 @@
 import tomllib
-import csv
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
 from collections import Counter
+
+import pandas as pd
 
 from audio.audiowaves import load_waveform_from_file
 from audio.audio_config import AudioConfigFactory
@@ -55,53 +56,50 @@ def main():
     input_path = config["output"]["automation_runs_csv"]
     output_path = config["output"]["decoded_csv"]
 
-    with open(input_path, "r", newline="", encoding="utf-8") as csv_input, open(
-        output_path, "w", newline="", encoding="utf-8"
-    ) as csv_out:
-        keys = [
-            "frequency",
-            "volume_gain_data",
-            "message",
-            "volume_noise",
-            "download_path",
-            "status",
-            "error_rate",
-            "decoded_data",
-            "decode_status",
-        ]
-        reader = csv.DictReader(csv_input)
-        writer = csv.DictWriter(csv_out, fieldnames=keys)
-        writer.writeheader()
+    df = pd.read_csv(input_path)
+    # df = df[(df["frequency"] > 200)]
+    rows = df.fillna("").to_dict(orient="records")
+    print(len(rows))
+    path_counts = Counter(row.get("download_path", "") for row in rows)
+    duplicated_paths = {
+        path: count for path, count in path_counts.items() if path and count > 1
+    }
+    if duplicated_paths:
+        print(
+            "Warning: duplicate download_path values found. Some rows likely reference overwritten files."
+            f" Duplicated paths: {len(duplicated_paths)}"
+        )
 
-        rows = list(reader)
-        path_counts = Counter(row.get("download_path", "") for row in rows)
-        duplicated_paths = {
-            path: count for path, count in path_counts.items() if path and count > 1
-        }
-        if duplicated_paths:
-            print(
-                "Warning: duplicate download_path values found. Some rows likely reference overwritten files."
-                f" Duplicated paths: {len(duplicated_paths)}"
-            )
+    total_rows = len(rows)
+    last_printed = -1
 
-        total_rows = len(rows)
-        last_printed = -1
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        decoded_rows = []
+        for idx, result in enumerate(
+            executor.map(
+                decode_row,
+                rows,
+                repeat(preamble),
+                repeat(cycles_per_symbol),
+                repeat(encoding_decoding_algorithm),
+            ),
+            1,
+        ):
+            decoded_rows.append(result)
+            last_printed = report_progress(idx, total_rows, last_printed)
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            for idx, result in enumerate(
-                executor.map(
-                    decode_row,
-                    rows,
-                    repeat(preamble),
-                    repeat(cycles_per_symbol),
-                    repeat(encoding_decoding_algorithm),
-                ),
-                1,
-            ):
-                writer.writerow(result)
-                csv_out.flush()
-
-                last_printed = report_progress(idx, total_rows, last_printed)
+    keys = [
+        "frequency",
+        "volume_gain_data",
+        "message",
+        "volume_noise",
+        "download_path",
+        "status",
+        "error_rate",
+        "decoded_data",
+        "decode_status",
+    ]
+    pd.DataFrame(decoded_rows).reindex(columns=keys).to_csv(output_path, index=False)
 
 
 if __name__ == "__main__":

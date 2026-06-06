@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.signal import resample_poly, butter, sosfiltfilt
+from scipy.signal import filtfilt, resample_poly, butter, sosfiltfilt
 import os
 import subprocess
 import tempfile
@@ -203,6 +203,19 @@ def apply_low_pass_filter(
         filtered = filtered[0]
 
     return np.asarray(filtered, dtype=np.float32)
+
+
+def low_pass_filter(
+    wave,
+    sample_rate: int,
+    cutoff_frequency: float = 100.0,
+    order: int = 5,
+):
+    # Calculate normalized cutoff frequency (Wn = 2 * fc / fs)
+    Wn = cutoff_frequency / (sample_rate / 2)
+    b, a = butter(order, Wn, btype="low")  # type: ignore
+    baseband = filtfilt(b, a, wave)
+    return baseband
 
 
 def load_waveform_from_file(filename):
