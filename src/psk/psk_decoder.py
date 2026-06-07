@@ -14,30 +14,58 @@ from psk.ecc import (
 from psk.psk_encoder import encode_dbpsk_list
 
 
-def decode_symbol_values(
-    symbol_values: list[complex],
-    preamble: list[int],
-    algorithm: str,
-) -> list[int]:
-    decoded_bits = []
-    if algorithm == "dbpsk":
-        previous_phase = np.angle(symbol_values[0])
-        for symbol_value in symbol_values[1:]:
-            phase = np.angle(symbol_value)
-            phase_delta = np.angle(np.exp(1j * (phase - previous_phase)))
-            decoded_bits.append(0 if np.cos(phase_delta) >= 0 else 1)
-            previous_phase = phase
-    elif algorithm == "bpsk":
-        pass
-    else:
-        raise ValueError(algorithm, "algorithm not recognized")
+def decode_symbol_values_dbpsk(
+    trimmed_waveform: np.ndarray,
+    samples_per_symbol: int,
+    sample_rate: int,
+    frequency: int,
+) -> np.ndarray:
+    waveform = np.asarray(trimmed_waveform, dtype=np.float64)
+    usable_len = waveform.size - (waveform.size % samples_per_symbol)
+    if usable_len < samples_per_symbol * 2:
+        return np.array([], dtype=np.int8)
 
-    return decoded_bits
+    time_vector = np.arange(usable_len) / sample_rate
+    osc = np.exp(-1j * 2 * np.pi * frequency * time_vector)
+    mixed = waveform[:usable_len] * osc
+    symbol_values = mixed.reshape(-1, samples_per_symbol).mean(axis=1)
+
+    phase_deltas = np.angle(np.exp(1j * np.diff(np.angle(symbol_values))))
+    return np.where(np.cos(phase_deltas) >= 0, -1, 1).astype(np.int8)
+
+
+def decode_symbol_values_bpsk(
+    trimmed_waveform: np.ndarray,
+    samples_per_symbol: int,
+    sample_rate: int,
+    frequency: int,
+) -> np.ndarray:
+    waveform = np.asarray(trimmed_waveform, dtype=np.float64)
+    if waveform.size == 0:
+        return np.array([], dtype=np.int8)
+
+    time_vector = np.arange(waveform.size) / sample_rate
+    osc = np.exp(-1j * 2 * np.pi * time_vector * frequency)
+    baseband = low_pass_filter(osc * waveform, sample_rate)
+    phase = np.angle(baseband)
+
+    start_indices = np.arange(
+        0, phase.size - samples_per_symbol + 1, samples_per_symbol
+    )
+    if start_indices.size == 0:
+        return np.array([], dtype=np.int8)
+
+    middle_indices = start_indices + samples_per_symbol // 2
+    middle_indices = middle_indices[middle_indices < phase.size]
+    if middle_indices.size == 0:
+        return np.array([], dtype=np.int8)
+
+    return np.where(np.sin(phase[middle_indices]) < 0, -1, 1).astype(np.int8)
 
 
 def detect_preamble(
     waveform: np.ndarray,
-    preamble: list[int],
+    preamble: np.ndarray,
     sample_rate=44100,
     frequency=440,
     cycles_per_symbol=1.0,
@@ -48,7 +76,7 @@ def detect_preamble(
 
     Args:
             waveform (np.ndarray): Input audio samples.
-            preamble (list[int]): Preamble bits before differential encoding.
+            preamble (np.ndarray): Preamble bits before differential encoding.
             sample_rate (int): Sample rate in Hz.
             frequency (float): Carrier frequency in Hz.
             cycles_per_symbol (float): Carrier cycles per symbol.
@@ -60,18 +88,19 @@ def detect_preamble(
     if waveform.size == 0:
         return 0
 
+    preamble = np.asarray(preamble, dtype=np.int8).reshape(-1)
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     if algorithm == "bpsk":
         encoded_preamble = preamble
     elif algorithm == "dbpsk":
-        encoded_preamble = encode_dbpsk_list(preamble)
+        encoded_preamble = encode_dbpsk_list(np.asarray(preamble, dtype=np.int8))
     else:
         raise ValueError(algorithm, "algorithm not recognized")
 
-    expected_chunks = []
-    sample_offset = 0
-    for bit in encoded_preamble:
-        expected_chunks.append(
+    expected = np.empty(encoded_preamble.size * samples_per_symbol, dtype=np.float32)
+    for idx, bit in enumerate(encoded_preamble):
+        sample_offset = idx * samples_per_symbol
+        expected[sample_offset : sample_offset + samples_per_symbol] = (
             bit_to_phase_wave(
                 bit,
                 frequency,
@@ -80,13 +109,7 @@ def detect_preamble(
                 sample_rate,
             )
         )
-        sample_offset += samples_per_symbol
-
-    expected = (
-        np.concatenate(expected_chunks).astype(np.float32)
-        if expected_chunks
-        else np.array([], dtype=np.float32)
-    )
+    expected = expected.astype(np.float32, copy=False)
     if expected.size == 0 or waveform.size < expected.size:
         return 0
 
@@ -122,41 +145,21 @@ def detect_preamble(
     # pick the offset with maximum absolute normalized inner product
     best = int(np.argmax(np.abs(scores)))
     best = best - expected_analytic.shape[0] // 2
-    trimmed_waveform = np.asarray(waveform[best:], dtype=np.float64)
-    if algorithm == "bpsk":
-        time_vector = np.arange(len(trimmed_waveform)) / sample_rate
-        osc = np.exp(-1j * 2 * np.pi * time_vector * frequency)
-        baseband = osc * trimmed_waveform
-        baseband = low_pass_filter(baseband, sample_rate)
-        phase = np.angle(baseband)
-        real = np.real(baseband)
-        pass
 
-    return best  # TODO: detected
-    # if trimmed_waveform.size < samples_per_symbol * len(encoded_preamble):
-    #     return best, False
+    return best
 
-    # # Extract symbols from the preamble region
-    # symbol_values = []
-    # for i in range(len(encoded_preamble)):
-    #     start = i * samples_per_symbol
-    #     end = start + samples_per_symbol
-    #     segment = trimmed_waveform[start:end]
-    #     if segment.size < samples_per_symbol:
-    #         return best, False
-    #     t = np.arange(samples_per_symbol) / sample_rate
-    #     mixed = segment * np.exp(-1j * 2 * np.pi * frequency * t)
-    #     symbol_values.append(np.sum(mixed) / samples_per_symbol)
 
-    # # Compare decoded preamble with the original preamble
-    # decoded_bits = decode_symbol_values(symbol_values, preamble, algorithm)
-    # detected = decoded_bits == preamble
-    # return best, detected
+def convert_to_1_1(a: np.ndarray) -> np.ndarray:
+    return np.where(a > 0, 1, -1).astype(np.int8)
+
+
+def convert_to_0_1(a: np.ndarray) -> np.ndarray:
+    return np.where(a > 0, 1, 0).astype(np.int8)
 
 
 def decode_from_audio(
     waveform,
-    preamble: list[int],
+    preamble: np.ndarray,
     sample_rate: int,
     frequency: int,
     cycles_per_symbol: float,
@@ -169,6 +172,8 @@ def decode_from_audio(
     if algorithm not in {"bpsk", "dbpsk"}:
         raise ValueError(algorithm, "algorithm not recognized")
 
+    preamble = np.asarray(preamble, dtype=np.int8).reshape(-1)
+
     start_index = detect_preamble(
         waveform,
         preamble,
@@ -178,32 +183,38 @@ def decode_from_audio(
         algorithm=algorithm,
     )
 
-    # TODO: check this has been correctly refactored
-    # # Return empty bytes if preamble was not detected
-    # if not preamble_detected:
-    #     return b"", "not-valid-preamble"
-
     trimmed_waveform = np.asarray(waveform[start_index:], dtype=np.float64)
-
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
-    symbol_values = []
-    for start in range(
-        0, trimmed_waveform.size - samples_per_symbol + 1, samples_per_symbol
-    ):
-        segment = trimmed_waveform[start : start + samples_per_symbol]
-        if segment.size < samples_per_symbol:
-            break
-        t = (np.arange(samples_per_symbol) + start) / sample_rate
-        mixed = segment * np.exp(-1j * 2 * np.pi * frequency * t)
-        symbol_values.append(np.sum(mixed) / samples_per_symbol)
+    decoded_bits = np.array([], dtype=np.int8)
+    if algorithm == "dbpsk":
+        decoded_bits = decode_symbol_values_dbpsk(
+            trimmed_waveform,
+            samples_per_symbol,
+            sample_rate,
+            frequency,
+        )
+    elif algorithm == "bpsk":
+        decoded_bits = decode_symbol_values_bpsk(
+            trimmed_waveform,
+            samples_per_symbol,
+            sample_rate,
+            frequency,
+        )
 
-    if len(symbol_values) < 2:
-        return b"", "check-error"
+    preamble_values = convert_to_1_1(np.asarray(preamble))
+    if not np.array_equal(decoded_bits[: len(preamble)], preamble_values):
+        inverted_decoded_bits = decoded_bits * -1
+        if np.array_equal(inverted_decoded_bits[: len(preamble)], preamble_values):
+            decoded_bits = inverted_decoded_bits
+            print("!!!!!!!!!!!!!!!INVERTED!!!!!!!!!!!!!!!!!!!!!")
+        else:
+            return (
+                bits_to_bytes(convert_to_0_1(decoded_bits)),
+                "not-valid-preamble",
+            )
 
-    # TODO: check correctness also for DBPSK
-    decoded_bits = decode_symbol_values(symbol_values, preamble, algorithm)
     # Strip leading preamble
-    payload_bits = decoded_bits[len(preamble) :]
+    payload_bits = convert_to_0_1(decoded_bits[len(preamble) :])
     if len(payload_bits) < ENCODED_HEADER_BITS:
         return b"", "no-header-in-payload"
 
@@ -222,6 +233,7 @@ def decode_from_audio(
         decoded_payload_bits = payload_bits
     else:
         decoded_payload_bits, _ = decode_hamming_7_4(payload_bits)
+    decoded_payload_bits = np.asarray(decoded_payload_bits, dtype=np.int8)
 
     payload_length_bits = payload_length_bytes * 8
     if len(decoded_payload_bits) < payload_length_bits:

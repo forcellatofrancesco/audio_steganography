@@ -40,7 +40,7 @@ def _params_key(params: dict[str, Any], keys: list[str]) -> tuple[str, ...]:
 def _run_parameter_grid(
     automation: WhatsAppAutomation,
     config_file: dict[str, Any],
-    preamble: list[int],
+    preamble: np.ndarray,
     algorithm: str,
     csv_output_path: Path,
 ) -> None:
@@ -136,7 +136,7 @@ def main():
     config_file = None
     with open("config.toml", "rb") as f:
         config_file = tomllib.load(f)
-    preamble: list[int] = config_file["sync"]["preamble"]
+    preamble = np.asarray(config_file["sync"]["preamble"], dtype=np.int8)
 
     # Load WhatsApp configuration (edit config.toml to customize)
     config = WhatsAppConfig()

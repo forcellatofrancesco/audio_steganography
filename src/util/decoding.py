@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import numpy as np
+
 from psk.psk_decoder import decode_from_audio
 
 
@@ -9,7 +11,7 @@ def decode_and_score_message(
     waveform,
     sample_rate: int,
     message: str,
-    preamble: list[int],
+    preamble: np.ndarray,
     frequency: int,
     cycles_per_symbol: float,
     algorithm: str,

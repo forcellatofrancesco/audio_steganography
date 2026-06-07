@@ -8,6 +8,7 @@ from audio.audiowaves import (
 )
 from audio.voice_manager import get_voice_manager
 from audio.audio_config import AudioConfigFactory, AudioConfig
+import numpy as np
 from psk.psk_encoder import (
     encode_to_audio,
 )
@@ -16,7 +17,7 @@ import tomllib
 
 def encode_from_config(
     byte_data: bytes,
-    preamble: list[int],
+    preamble: np.ndarray,
     algorithm: str,
     dataset_directory: str,
     output_path: str,
@@ -81,7 +82,7 @@ def main():
     message = None
     with open(config["input"]["message"], "r") as input:
         message = "".join(input.readlines())
-    preamble: list[int] = config["sync"]["preamble"]
+    preamble = np.asarray(config["sync"]["preamble"], dtype=np.int8)
     byte_data = message.encode("utf-8")
     encode_from_config(
         byte_data,

@@ -12,18 +12,20 @@ from psk.ecc import (
 # Header contains version, ECC scheme, and payload length (bytes).
 
 
-def encode_dbpsk_list(bits: list[int], previous_bit: int = 1) -> list[int]:
-    res = []
-    res.append(previous_bit)
+def encode_dbpsk_list(bits: np.ndarray, previous_bit: int = 1) -> np.ndarray:
+    bits = np.asarray(bits, dtype=np.int8).reshape(-1)
+    res = np.empty(bits.size + 1, dtype=np.int8)
+    res[0] = previous_bit
     prev: int = previous_bit
-    for bit in bits:
-        xored = prev ^ bit
-        res.append(xored)
+    for idx, bit in enumerate(bits, start=1):
+        xored = prev ^ int(bit)
+        res[idx] = xored
         prev = xored
     return res
 
 
-def encode_bpsk(data: bytes, preamble: list[int]) -> list[int]:
+def encode_bpsk(data: bytes, preamble: np.ndarray) -> np.ndarray:
+    preamble = np.asarray(preamble, dtype=np.int8).reshape(-1)
     payload_length_bytes = len(data)
     if payload_length_bytes > MAX_PAYLOAD_LENGTH_BYTES:
         raise ValueError("payload length exceeds header limits.")
@@ -31,18 +33,12 @@ def encode_bpsk(data: bytes, preamble: list[int]) -> list[int]:
     header_bits = encode_hamming_7_4(header_bits)
     payload_bits, _ = pad_bits(bytes_to_bits(data), 4)
     payload_bits = encode_hamming_7_4(payload_bits)
-    bits: list[int] = []
-    # Add preamble
-    bits += preamble
-    bits += header_bits
-    bits += payload_bits
-
-    return bits
+    return np.concatenate([preamble, header_bits, payload_bits])
 
 
 def encode_to_audio(
     data: bytes,
-    preamble: list[int],
+    preamble: np.ndarray,
     sample_rate: int,
     frequency: int,
     cycles_per_symbol: float,
@@ -53,7 +49,7 @@ def encode_to_audio(
     if cycles_per_symbol <= 0:
         raise ValueError("cycles_per_symbol must be positive.")
 
-    encoded_bits = []
+    encoded_bits = np.array([], dtype=np.int8)
     if algorithm == "bpsk":
         encoded_bits = encode_bpsk(data, preamble)
     elif algorithm == "dbpsk":

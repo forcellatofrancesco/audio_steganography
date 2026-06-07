@@ -85,7 +85,7 @@ def decode_row(
     message: str,
     frequency: int,
     download_path: str,
-    preamble: list[int],
+    preamble: np.ndarray,
     cycles_per_symbol: float,
     encoding_decoding_algorithm: str,
 ):
@@ -105,7 +105,7 @@ def decode_row(
 def process_parameter_set(
     index: int,
     params: dict[str, Any],
-    preamble: list[int],
+    preamble: np.ndarray,
     encoding_decoding_algorithm: str,
     config_file: dict[str, Any],
 ):
@@ -176,7 +176,7 @@ def report_progress(
 def main():
     config_file = load_config_file(Path("config.toml"))
     encoding_decoding_algorithm = config_file["algorithm"]["encoding_decoding"]
-    preamble: list[int] = config_file["sync"]["preamble"]
+    preamble = np.asarray(config_file["sync"]["preamble"], dtype=np.int8)
 
     csv_output_path = Path(config_file["output"]["encode_decode_no_wa"])
     csv_output_path.parent.mkdir(parents=True, exist_ok=True)

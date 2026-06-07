@@ -58,6 +58,7 @@ def main():
 
     df = pd.read_csv(input_path)
     # df = df[(df["frequency"] > 200)]
+    # print("_________ REMOVE FILTER FOR PROD ____________")
     rows = df.fillna("").to_dict(orient="records")
     print(len(rows))
     path_counts = Counter(row.get("download_path", "") for row in rows)
@@ -73,7 +74,7 @@ def main():
     total_rows = len(rows)
     last_printed = -1
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=24) as executor:
         decoded_rows = []
         for idx, result in enumerate(
             executor.map(
