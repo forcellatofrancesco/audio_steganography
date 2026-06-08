@@ -1,20 +1,6 @@
 import numpy as np
 
 
-def bit_to_phase_wave(
-    bit: int,
-    frequency,
-    samples_per_symbol,
-    sample_offset,
-    sample_rate,
-):
-    bit = int(bit)
-    phase = np.pi * bit  # phase = 0 when xored = 0, phase = pi when xored = 1
-    t_symbol = (np.arange(samples_per_symbol) + sample_offset) / sample_rate
-    symbol = np.sin(2 * np.pi * frequency * t_symbol + phase)
-    return symbol
-
-
 def bits_to_phase_wave(
     bits: np.ndarray,
     frequency: int,
@@ -23,19 +9,13 @@ def bits_to_phase_wave(
 ) -> np.ndarray:
     bits = np.asarray(bits, dtype=np.int8).reshape(-1)
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
-    waveform = np.empty(bits.size * samples_per_symbol, dtype=np.float64)
-    for idx, bit in enumerate(bits):
-        sample_offset = idx * samples_per_symbol
-        waveform[sample_offset : sample_offset + samples_per_symbol] = (
-            bit_to_phase_wave(
-                bit,
-                frequency,
-                samples_per_symbol,
-                sample_offset,
-                sample_rate,
-            )
-        )
-    return waveform
+    total_samples = bits.size * samples_per_symbol
+    if total_samples == 0:
+        return np.empty(0, dtype=np.float64)
+
+    time_vector = np.arange(total_samples, dtype=np.float64) / sample_rate
+    phase_vector = np.repeat(np.pi * bits.astype(np.float64), samples_per_symbol)
+    return np.sin(2 * np.pi * frequency * time_vector + phase_vector)
 
 
 def bytes_to_bits(data: bytes) -> np.ndarray:
@@ -47,11 +27,13 @@ def bytes_to_bits(data: bytes) -> np.ndarray:
 
 
 def bits_to_bytes(bits: np.ndarray) -> bytes:
-    bits = np.asarray(bits).reshape(-1)
     if bits.size == 0:
         return b""
     packed = np.packbits((bits > 0).astype(np.uint8), bitorder="big")
-    return packed.tobytes()
+    usable_len = bits.size // 8
+    if usable_len == 0:
+        return b""
+    return packed[:usable_len].tobytes()
 
 
 def int_to_bit_list(x: int, bits: int = 16) -> np.ndarray:

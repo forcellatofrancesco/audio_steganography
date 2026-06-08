@@ -1,7 +1,7 @@
 import numpy as np
 
 from audio.audiowaves import low_pass_filter
-from bit_phase.bit_phase import bit_to_phase_wave, bits_to_bytes
+from bit_phase.bit_phase import bits_to_bytes, bits_to_phase_wave
 from psk.ecc import (
     ECC_SCHEME_HAMMING_7_4,
     ECC_SCHEME_NONE,
@@ -89,7 +89,6 @@ def detect_preamble(
         return 0
 
     preamble = np.asarray(preamble, dtype=np.int8).reshape(-1)
-    samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     if algorithm == "bpsk":
         encoded_preamble = preamble
     elif algorithm == "dbpsk":
@@ -97,19 +96,10 @@ def detect_preamble(
     else:
         raise ValueError(algorithm, "algorithm not recognized")
 
-    expected = np.empty(encoded_preamble.size * samples_per_symbol, dtype=np.float32)
-    for idx, bit in enumerate(encoded_preamble):
-        sample_offset = idx * samples_per_symbol
-        expected[sample_offset : sample_offset + samples_per_symbol] = (
-            bit_to_phase_wave(
-                bit,
-                frequency,
-                samples_per_symbol,
-                sample_offset,
-                sample_rate,
-            )
-        )
-    expected = expected.astype(np.float32, copy=False)
+    expected = bits_to_phase_wave(
+        encoded_preamble, frequency, cycles_per_symbol, sample_rate
+    )
+
     if expected.size == 0 or waveform.size < expected.size:
         return 0
 
@@ -206,7 +196,6 @@ def decode_from_audio(
         inverted_decoded_bits = decoded_bits * -1
         if np.array_equal(inverted_decoded_bits[: len(preamble)], preamble_values):
             decoded_bits = inverted_decoded_bits
-            print("!!!!!!!!!!!!!!!INVERTED!!!!!!!!!!!!!!!!!!!!!")
         else:
             return (
                 bits_to_bytes(convert_to_0_1(decoded_bits)),
