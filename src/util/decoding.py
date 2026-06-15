@@ -5,13 +5,14 @@ from typing import Any
 import numpy as np
 
 from psk.psk_decoder import decode_from_audio
+from util.types import bit_array, value_array
 
 
 def decode_and_score_message(
-    waveform,
+    waveform: value_array,
     sample_rate: int,
     message: str,
-    preamble: np.ndarray,
+    preamble: bit_array,
     frequency: int,
     cycles_per_symbol: float,
     algorithm: str,

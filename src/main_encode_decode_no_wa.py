@@ -22,6 +22,7 @@ from audio.audiowaves import load_waveform_from_file
 from main_encode import encode_from_config
 from util.decoding import decode_and_score_message
 from util import test_messages
+from util.types import bit_array, value_array
 
 
 def _normalize_param(value: Any) -> str:
@@ -85,7 +86,7 @@ def decode_row(
     message: str,
     frequency: int,
     download_path: str,
-    preamble: np.ndarray,
+    preamble: bit_array,
     cycles_per_symbol: float,
     encoding_decoding_algorithm: str,
 ):
@@ -105,7 +106,7 @@ def decode_row(
 def process_parameter_set(
     index: int,
     params: dict[str, Any],
-    preamble: np.ndarray,
+    preamble: bit_array,
     encoding_decoding_algorithm: str,
     config_file: dict[str, Any],
 ):

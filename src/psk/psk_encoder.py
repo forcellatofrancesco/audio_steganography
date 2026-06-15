@@ -8,11 +8,12 @@ from psk.ecc import (
     encode_hamming_7_4,
     pad_bits,
 )
+from util.types import bit_array, value_array
 
 # Header contains version, ECC scheme, and payload length (bytes).
 
 
-def encode_dbpsk_list(bits: np.ndarray, previous_bit: int = 1) -> np.ndarray:
+def encode_dbpsk_list(bits: bit_array, previous_bit: int = 1) -> bit_array:
     bits = np.asarray(bits, dtype=np.int8).reshape(-1)
     res = np.empty(bits.size + 1, dtype=np.int8)
     res[0] = previous_bit
@@ -24,7 +25,7 @@ def encode_dbpsk_list(bits: np.ndarray, previous_bit: int = 1) -> np.ndarray:
     return res
 
 
-def encode_bpsk(data: bytes, preamble: np.ndarray) -> np.ndarray:
+def encode_bpsk(data: bytes, preamble: bit_array) -> bit_array:
     preamble = np.asarray(preamble, dtype=np.int8).reshape(-1)
     payload_length_bytes = len(data)
     if payload_length_bytes > MAX_PAYLOAD_LENGTH_BYTES:
@@ -38,12 +39,12 @@ def encode_bpsk(data: bytes, preamble: np.ndarray) -> np.ndarray:
 
 def encode_to_audio(
     data: bytes,
-    preamble: np.ndarray,
+    preamble: bit_array,
     sample_rate: int,
     frequency: int,
     cycles_per_symbol: float,
     algorithm: str,
-) -> tuple[np.ndarray, float]:
+) -> tuple[value_array, float]:
     if frequency <= 0:
         raise ValueError("frequency must be positive.")
     if cycles_per_symbol <= 0:

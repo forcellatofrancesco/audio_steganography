@@ -14,10 +14,12 @@ from psk.psk_encoder import (
 )
 import tomllib
 
+from util.types import bit_array, value_array
+
 
 def encode_from_config(
     byte_data: bytes,
-    preamble: np.ndarray,
+    preamble: bit_array,
     algorithm: str,
     dataset_directory: str,
     output_path: str,

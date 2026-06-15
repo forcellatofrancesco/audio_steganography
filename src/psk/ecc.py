@@ -1,6 +1,7 @@
 import numpy as np
 
 from bit_phase.bit_phase import bits_to_int, int_to_bit_list
+from util.types import bit_array
 
 ECC_SCHEME_NONE = 0
 ECC_SCHEME_HAMMING_7_4 = 1
@@ -19,7 +20,7 @@ ENCODED_HEADER_BITS = (
 ) * HEADER_CODEWORD_BITS
 
 
-def pad_bits(bits: np.ndarray, block_size: int) -> tuple[np.ndarray, int]:
+def pad_bits(bits: bit_array, block_size: int) -> tuple[bit_array, int]:
     bits = np.asarray(bits, dtype=np.int8).reshape(-1)
     remainder = len(bits) % block_size
     if remainder == 0:
@@ -28,7 +29,7 @@ def pad_bits(bits: np.ndarray, block_size: int) -> tuple[np.ndarray, int]:
     return np.concatenate([bits, np.zeros(padding, dtype=np.int8)]), padding
 
 
-def _hamming74_encode_nibble(nibble: np.ndarray) -> np.ndarray:
+def _hamming74_encode_nibble(nibble: bit_array) -> bit_array:
     nibble = np.asarray(nibble, dtype=np.int8).reshape(-1)
     if len(nibble) != 4:
         raise ValueError("Hamming(7,4) encoding requires 4 data bits.")
@@ -39,7 +40,7 @@ def _hamming74_encode_nibble(nibble: np.ndarray) -> np.ndarray:
     return np.array([p1, p2, d1, p4, d2, d3, d4], dtype=np.int8)
 
 
-def _hamming74_decode_codeword(codeword: np.ndarray) -> tuple[np.ndarray, bool]:
+def _hamming74_decode_codeword(codeword: bit_array) -> tuple[bit_array, bool]:
     codeword = np.asarray(codeword, dtype=np.int8).reshape(-1)
     if len(codeword) != 7:
         raise ValueError("Hamming(7,4) decoding requires 7 bits.")
@@ -60,7 +61,7 @@ def _hamming74_decode_codeword(codeword: np.ndarray) -> tuple[np.ndarray, bool]:
     return data_bits, corrected
 
 
-def encode_hamming_7_4(bits: np.ndarray) -> np.ndarray:
+def encode_hamming_7_4(bits: bit_array) -> bit_array:
     bits = np.asarray(bits, dtype=np.int8).reshape(-1)
     if len(bits) % 4 != 0:
         raise ValueError("Hamming(7,4) encoding requires 4-bit blocks.")
@@ -74,7 +75,7 @@ def encode_hamming_7_4(bits: np.ndarray) -> np.ndarray:
     return encoded
 
 
-def decode_hamming_7_4(bits: np.ndarray) -> tuple[np.ndarray, int]:
+def decode_hamming_7_4(bits: bit_array) -> tuple[bit_array, int]:
     bits = np.asarray(bits, dtype=np.int8).reshape(-1)
     corrections = 0
     usable_len = len(bits) - (len(bits) % 7)
@@ -91,7 +92,7 @@ def decode_hamming_7_4(bits: np.ndarray) -> tuple[np.ndarray, int]:
     return decoded, corrections
 
 
-def build_header_bits(payload_length_bytes: int, ecc_scheme: int) -> np.ndarray:
+def build_header_bits(payload_length_bytes: int, ecc_scheme: int) -> bit_array:
     if payload_length_bytes < 0 or payload_length_bytes > MAX_PAYLOAD_LENGTH_BYTES:
         raise ValueError("payload length exceeds header limits.")
     header = np.empty(HEADER_DATA_BITS, dtype=np.int8)
@@ -105,7 +106,7 @@ def build_header_bits(payload_length_bytes: int, ecc_scheme: int) -> np.ndarray:
     return header
 
 
-def parse_header_bits(header_bits: np.ndarray) -> tuple[int, int, int]:
+def parse_header_bits(header_bits: bit_array) -> tuple[int, int, int]:
     header_bits = np.asarray(header_bits, dtype=np.int8).reshape(-1)
     if len(header_bits) < HEADER_DATA_BITS:
         raise ValueError("header bits are incomplete.")

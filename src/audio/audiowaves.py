@@ -7,15 +7,17 @@ import wave
 import math
 import random
 
+from util.types import bit_array, value_array
+
 
 def save_waveform_to_file(
-    waveform: np.ndarray, filename: str, sample_rate: int = 44100
+    waveform: value_array, filename: str, sample_rate: int = 44100
 ):
     """
     Save a waveform array to a WAV file with 16-bit mono audio encoding.
 
     Args:
-        waveform (np.ndarray): A numpy array containing audio samples.
+        waveform (value_array): A numpy array containing audio samples.
             Values should be in the range [-1, 1] for optimal normalization.
         filename (str): The output file path where the WAV file will be saved.
         sample_rate (int, optional): The sample rate in Hz. Defaults to 44100 Hz (CD quality).
@@ -75,17 +77,17 @@ def save_waveform_to_file(
             os.remove(temp_wav_path)
 
 
-def change_waveform_volume(waveform: np.ndarray, gain: float) -> np.ndarray:
+def change_waveform_volume(waveform: value_array, gain: float) -> value_array:
     """
     Scale a mono waveform by a gain factor.
 
     Args:
-            waveform (np.ndarray): Input 1D waveform.
+            waveform (value_array): Input 1D waveform.
             gain (float): Non-negative gain multiplier.
                     ``1.0`` keeps the waveform unchanged, ``0.0`` silences it.
 
     Returns:
-            np.ndarray: Gain-adjusted waveform (float32).
+            value_array: Gain-adjusted waveform (float32).
 
     Raises:
             ValueError: If waveform is not 1D, or gain is negative/non-finite.
@@ -110,7 +112,7 @@ def generate_white_noise(
     mean: float = 0.0,
     stddev: float = 1.0,
     seed: int | None = None,
-) -> np.ndarray:
+) -> value_array:
     """
     Generate white-noise samples from a normal (Gaussian) distribution.
 
@@ -122,7 +124,7 @@ def generate_white_noise(
             seed (int | None, optional): Random seed for reproducible noise.
 
     Returns:
-            np.ndarray: White-noise waveform as float32.
+            value_array: White-noise waveform as float32.
 
     Raises:
             ValueError: If parameters are invalid.
@@ -143,23 +145,23 @@ def generate_white_noise(
 
 
 def apply_low_pass_filter(
-    waveform: np.ndarray,
+    waveform: value_array,
     high_frequency: float,
     sample_rate: int,
     order: int = 5,
-) -> np.ndarray:
+) -> value_array:
     """
     Apply a low-pass Butterworth filter to a mono waveform.
 
     Args:
-            waveform (np.ndarray): Input 1D waveform.
+            waveform (value_array): Input 1D waveform.
             high_frequency (float): Cutoff frequency in Hz. Frequencies above
                     this value are attenuated.
             sample_rate (int): Waveform sample rate in Hz.
             order (int, optional): Filter order. Defaults to ``5``.
 
     Returns:
-            np.ndarray: Filtered waveform (float32).
+            value_array: Filtered waveform (float32).
 
     Raises:
             ValueError: If waveform shape is invalid or filter parameters are invalid.
@@ -206,11 +208,11 @@ def apply_low_pass_filter(
 
 
 def low_pass_filter(
-    wave,
+    wave: value_array,
     sample_rate: int,
     cutoff_frequency: float = 100.0,
     order: int = 5,
-):
+) -> value_array:
     # Calculate normalized cutoff frequency (Wn = 2 * fc / fs)
     Wn = cutoff_frequency / (sample_rate / 2)
     b, a = butter(order, Wn, btype="low")  # type: ignore
@@ -218,7 +220,7 @@ def low_pass_filter(
     return baseband
 
 
-def load_waveform_from_file(filename):
+def load_waveform_from_file(filename: str) -> tuple[value_array, int]:
     """
     Load a WAV file and return normalized mono waveform and sample rate.
 
@@ -226,7 +228,7 @@ def load_waveform_from_file(filename):
             filename (str): Path to the WAV file.
 
     Returns:
-            tuple[np.ndarray, int]: (waveform, sample_rate)
+            tuple[value_array, int]: (waveform, sample_rate)
 
     Raises:
             ValueError: If the WAV format is unsupported.
@@ -281,7 +283,7 @@ def load_and_concatenate_waveforms(
     file_paths: list[str],
     sample_rate: int,
     resample: bool = True,
-) -> np.ndarray:
+) -> value_array:
 
     if not file_paths:
         raise ValueError("file_paths must contain at least one audio file path.")
@@ -305,20 +307,20 @@ def load_and_concatenate_waveforms(
 
 
 def resample_waveform(
-    waveform: np.ndarray,
+    waveform: value_array,
     original_sample_rate: int,
     target_sample_rate: int,
-) -> np.ndarray:
+) -> value_array:
     """
-    Resample a mono waveform to a new sample rate.
+    Resample a mono waveform to a many sample rate.
 
     Args:
-            waveform (np.ndarray): Input 1D waveform.
+            waveform (value_array): Input 1D waveform.
             original_sample_rate (int): Source sample rate in Hz.
             target_sample_rate (int): Target sample rate in Hz.
 
     Returns:
-            np.ndarray: Resampled waveform (float32).
+            value_array: Resampled waveform (float32).
 
     Raises:
             ValueError: If waveform shape is invalid or sample rates are not positive.
@@ -343,22 +345,22 @@ def resample_waveform(
 
 
 def _overlap_waveforms(
-    waveform_a: np.ndarray,
-    waveform_b: np.ndarray,
+    waveform_a: value_array,
+    waveform_b: value_array,
     random_offset: bool = False,
-) -> np.ndarray:
+) -> value_array:
     """
     Sum two mono waveforms so they overlap in time.
 
     Args:
-            waveform_a (np.ndarray): First input waveform.
-            waveform_b (np.ndarray): Second input waveform.
+            waveform_a (value_array): First input waveform.
+            waveform_b (value_array): Second input waveform.
             waveform_b_start (int): Start index of ``waveform_b`` relative to
                     ``waveform_a`` in samples. ``0`` means both start together.
                     Positive values delay ``waveform_b``; negative values start it earlier.
 
     Returns:
-            np.ndarray: The mixed waveform as float32.
+            value_array: The mixed waveform as float32.
 
     Raises:
             ValueError: If either waveform is not 1D.
@@ -388,9 +390,9 @@ def _overlap_waveforms(
     return mixed
 
 
-def sum_waveforms(*waveforms: np.ndarray, random_offset: bool = False) -> np.ndarray:
+def sum_waveforms(*waveforms: value_array, random_offset: bool = False) -> value_array:
     if len(waveforms) == 0:
-        return np.ndarray([])
+        return np.array([], dtype=np.float32)
     if len(waveforms) == 1:
         return waveforms[0]
     res = waveforms[0]

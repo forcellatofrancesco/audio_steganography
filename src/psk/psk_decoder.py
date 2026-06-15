@@ -12,14 +12,15 @@ from psk.ecc import (
     parse_header_bits,
 )
 from psk.psk_encoder import encode_dbpsk_list
+from util.types import bit_array, value_array
 
 
 def decode_symbol_values_dbpsk(
-    trimmed_waveform: np.ndarray,
+    trimmed_waveform: value_array,
     samples_per_symbol: int,
     sample_rate: int,
     frequency: int,
-) -> np.ndarray:
+) -> value_array:
     waveform = np.asarray(trimmed_waveform, dtype=np.float64)
     usable_len = waveform.size - (waveform.size % samples_per_symbol)
     if usable_len < samples_per_symbol * 2:
@@ -35,11 +36,11 @@ def decode_symbol_values_dbpsk(
 
 
 def decode_symbol_values_bpsk(
-    trimmed_waveform: np.ndarray,
+    trimmed_waveform: value_array,
     samples_per_symbol: int,
     sample_rate: int,
     frequency: int,
-) -> np.ndarray:
+) -> value_array:
     waveform = np.asarray(trimmed_waveform, dtype=np.float64)
     if waveform.size == 0:
         return np.array([], dtype=np.int8)
@@ -64,8 +65,8 @@ def decode_symbol_values_bpsk(
 
 
 def detect_preamble(
-    waveform: np.ndarray,
-    preamble: np.ndarray,
+    waveform: value_array,
+    preamble: bit_array,
     sample_rate=44100,
     frequency=440,
     cycles_per_symbol=1.0,
@@ -75,8 +76,8 @@ def detect_preamble(
     Find the sample offset of a DBPSK preamble using matched filtering.
 
     Args:
-            waveform (np.ndarray): Input audio samples.
-            preamble (np.ndarray): Preamble bits before differential encoding.
+            waveform (value_array): Input audio samples.
+            preamble (bit_array): Preamble bits before differential encoding.
             sample_rate (int): Sample rate in Hz.
             frequency (float): Carrier frequency in Hz.
             cycles_per_symbol (float): Carrier cycles per symbol.
@@ -139,17 +140,17 @@ def detect_preamble(
     return best
 
 
-def convert_to_1_1(a: np.ndarray) -> np.ndarray:
+def convert_to_1_1(a: bit_array) -> value_array:
     return np.where(a > 0, 1, -1).astype(np.int8)
 
 
-def convert_to_0_1(a: np.ndarray) -> np.ndarray:
+def convert_to_0_1(a: value_array) -> bit_array:
     return np.where(a > 0, 1, 0).astype(np.int8)
 
 
 def decode_from_audio(
-    waveform,
-    preamble: np.ndarray,
+    waveform: value_array,
+    preamble: bit_array,
     sample_rate: int,
     frequency: int,
     cycles_per_symbol: float,

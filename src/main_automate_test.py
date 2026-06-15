@@ -23,6 +23,7 @@ import numpy as np
 
 from main_encode import encode_from_config
 from util import test_messages
+from util.types import bit_array, value_array
 
 
 def _normalize_param(value: Any) -> str:
@@ -40,7 +41,7 @@ def _params_key(params: dict[str, Any], keys: list[str]) -> tuple[str, ...]:
 def _run_parameter_grid(
     automation: WhatsAppAutomation,
     config_file: dict[str, Any],
-    preamble: np.ndarray,
+    preamble: bit_array,
     algorithm: str,
     csv_output_path: Path,
 ) -> None:
