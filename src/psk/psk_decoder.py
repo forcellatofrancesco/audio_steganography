@@ -11,7 +11,7 @@ from psk.ecc import (
     decode_hamming_7_4,
     parse_header_bits,
 )
-from psk.psk_encoder import encode_dbpsk_list
+from psk.psk_encoder import encode_dbpsk_list, encode_to_audio
 from util.types import bit_array, value_array
 
 
@@ -49,7 +49,10 @@ def decode_symbol_values_bpsk(
     osc = np.exp(-1j * 2 * np.pi * time_vector * frequency)
     baseband = low_pass_filter(osc * waveform, sample_rate)
     phase = np.angle(baseband)
-
+    ###################################################################
+    global out_phase
+    out_phase = phase
+    ###################################################################
     start_indices = np.arange(
         0, phase.size - samples_per_symbol + 1, samples_per_symbol
     )
@@ -112,7 +115,6 @@ def detect_preamble(
 
     expected = expected - np.mean(expected)
     expected_analytic = np.real(np.asarray(expected))
-
     win_len = expected_analytic.size
     if candidate.size < win_len:
         return 0
@@ -148,6 +150,11 @@ def convert_to_0_1(a: value_array) -> bit_array:
     return np.where(a > 0, 1, 0).astype(np.int8)
 
 
+out_trimmed_waveform = None
+out_phase = None
+out_expected = None
+
+
 def decode_from_audio(
     waveform: value_array,
     preamble: bit_array,
@@ -175,6 +182,10 @@ def decode_from_audio(
     )
 
     trimmed_waveform = np.asarray(waveform[start_index:], dtype=np.float64)
+    ###################################################################
+    global out_trimmed_waveform
+    out_trimmed_waveform = trimmed_waveform
+    ###################################################################
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     decoded_bits = np.array([], dtype=np.int8)
     if algorithm == "dbpsk":
@@ -194,7 +205,15 @@ def decode_from_audio(
 
     if decoded_bits.shape[0] < len(preamble):
         return b"", "not-valid-preamble"
-    
+
+    ######################################################################################
+    # Per il messaggio HI!
+    # 1. forma d'onda sengale whatsapp
+    # 2. trimmed_waveform
+    # 3. sopra il segnale della fase
+    # 4. sopra di quello il segnale che mi aspetto di avere (come un'onda quadra)
+    ######################################################################################
+
     preamble_values = convert_to_1_1(np.asarray(preamble))
     checksum = np.sum(preamble_values * decoded_bits[: len(preamble)])
     if (checksum > 0 and checksum < 11) or (checksum < 0 and checksum > -11):
@@ -230,5 +249,17 @@ def decode_from_audio(
         return bits_to_bytes(decoded_payload_bits), "paylod-too-short"
 
     decoded_payload_bits = decoded_payload_bits[:payload_length_bits]
-
+    ####################################################################
+    global out_expected
+    out_expected, _ = encode_to_audio(
+        "Hi!".encode("utf-8"),
+        preamble,
+        sample_rate,
+        frequency,
+        cycles_per_symbol,
+        algorithm,
+    )
+    message = bits_to_bytes(decoded_payload_bits).decode("utf-8", errors="replace")
+    print(message)
+    ###################################################################
     return bits_to_bytes(decoded_payload_bits), "valid-preamble"

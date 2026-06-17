@@ -57,10 +57,13 @@ def main():
     output_path = config["output"]["decoded_csv"]
 
     df = pd.read_csv(input_path)
-    # df = df[(df["frequency"] > 200)]
-    # print("_________ REMOVE FILTER FOR PROD ____________")
+
+    df = df[df["message"] == "Hi!"]
+    df = df[(df["frequency"] > 200)]
+    df = df[df["volume_gain_data"] > 0.3]
+    print(df.shape[0])
+    print("_________ REMOVE FILTER FOR PROD ____________")
     rows = df.fillna("").to_dict(orient="records")
-    print(len(rows))
     path_counts = Counter(row.get("download_path", "") for row in rows)
     duplicated_paths = {
         path: count for path, count in path_counts.items() if path and count > 1
@@ -74,7 +77,7 @@ def main():
     total_rows = len(rows)
     last_printed = -1
 
-    with ThreadPoolExecutor(max_workers=24) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         decoded_rows = []
         for idx, result in enumerate(
             executor.map(
