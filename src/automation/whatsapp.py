@@ -5,6 +5,7 @@ for other social media implementations without changing the main orchestration c
 """
 
 import datetime
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -43,7 +44,12 @@ class WhatsAppAutomation(SocialMediaAutomation):
         "button[aria-label*='voice'], "
         "button[aria-label*='mensaje'], "
         "button[aria-label*='audio'], "
-        "button[aria-label*='ptt']"
+        "button[aria-label*='ptt'], "
+        "div[aria-label*='ptt'], "
+        "span[aria-label*='ptt'], "
+        "div[role='button']:has-text('ptt'), "
+        "div:has-text('ptt'):has-text('ic-play-arrow-filled'), "
+        "span:has-text('ptt'):has-text('ic-play-arrow-filled')"
     )
 
     READY_SELECTORS = [
@@ -71,18 +77,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
     ]
 
     DOWNLOAD_MENU_ITEMS = [
-        "div[role='menuitem']:has-text('Scarica')",
-        "div[role='menuitem']:has-text('Download')",
-        "div[role='menuitem']:has-text('Télécharger')",
-        "div[role='menuitem']:has-text('Descargar')",
-        "div[role='menuitem']:has-text('Baixar')",
-        "div[role='menuitem']:has-text('تحميل')",
-        "text='Scarica'",
-        "text='Download'",
-        "text='Télécharger'",
-        "text='Descargar'",
-        "text='Baixar'",
-        "text='تحميل'",
+        "Scarica",
     ]
 
     def __init__(self, context: BrowserContext, config: WhatsAppConfig | None = None):
@@ -150,7 +145,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
                 except Exception:
                     continue
 
-            self.page.wait_for_timeout(300)
+            self.page.wait_for_timeout(1_000)
 
         raise RuntimeError(
             "Could not find WhatsApp recording button within the configured timeout. "
@@ -187,272 +182,107 @@ class WhatsAppAutomation(SocialMediaAutomation):
         previous_visible_audio_count: int,
         previous_visible_audio_signatures: set[tuple[int, int]] | None = None,
     ) -> str:
-        """Wait for the sent audio message and download it to the output folder."""
+        """Wait for the sent audio message and download the one at the very bottom."""
         output_dir = self.config.download_output_path
         output_dir.mkdir(parents=True, exist_ok=True)
-        previous_visible_audio_signatures = previous_visible_audio_signatures or set()
 
-        if self.config.post_send_settle_delay_ms > 0:
-            print(
-                "Waiting for WhatsApp UI to render the sent audio bubble "
-                f"({self.config.post_send_settle_delay_ms} ms)..."
-            )
-            self.page.wait_for_timeout(self.config.post_send_settle_delay_ms)
+        self.page.wait_for_timeout(self.config.post_send_settle_delay_ms)
 
         deadline = time.monotonic() + (self.config.download_wait_timeout_ms / 1000)
-        last_wait_log = 0.0
 
-        print("Waiting for sent audio message to appear in chat...")
+        print("Waiting for sent audio message to appear at the bottom of the chat...")
+
+        # Pattern from user recording: 'ic-play-arrow-filled' + timestamp + 'ptt'
+        # We use regex to handle varying durations (e.g., 0:05, 0:10, etc.)
+        AUDIO_PATTERN = re.compile(r"ic-play-arrow-filled.*ptt", re.IGNORECASE)
 
         while time.monotonic() < deadline:
-            now = time.monotonic()
-            if now - last_wait_log > 5:
-                print("Searching for audio message in the chat...")
-                last_wait_log = now
-
             try:
-                voice_buttons = self.page.locator(self.VOICE_BUTTONS_SELECTOR).all()
+                # 1. Primary Strategy: Find the LATEST outgoing message bubble.
+                # Sent messages are in 'div.message-out'.
+                latest_out_bubble = self.page.locator(
+                    'div[role="row"]:has(button[aria-label="Riproduci messaggio vocale"])'
+                ).last
+                if latest_out_bubble.count() > 0:
+                    audio_btn = latest_out_bubble.get_by_text(AUDIO_PATTERN)
+                    if audio_btn.count() > 0:
+                        print("Found audio control in latest outgoing message bubble.")
+                        target = audio_btn.first
+                        target.scroll_into_view_if_needed()
 
-                if voice_buttons:
-                    latest_button = None
-                    latest_container = None
-                    latest_key = (float("-inf"), float("-inf"), float("-inf"))
-                    visible_count = 0
-                    lower_band_visible_count = 0
-                    new_outgoing_candidates = []
-                    new_fallback_candidates = []
-                    lower_band_new_outgoing_candidates = []
-                    lower_band_new_fallback_candidates = []
-                    outgoing_candidates = []
-                    fallback_candidates = []
-                    lower_band_outgoing_candidates = []
-                    lower_band_fallback_candidates = []
-                    page_width = (self.page.viewport_size or {}).get("width", 1366)
-                    page_height = (self.page.viewport_size or {}).get("height", 768)
-                    lower_band_y = page_height * 0.45
+                        # Execute recorded sequence
+                        target.click(button="right")
+                        with self.page.expect_download(timeout=10000) as download_info:
+                            self.page.get_by_role("menuitem", name="Scarica").click()
 
-                    for button in voice_buttons:
+                        download = download_info.value
+                        filename = download.suggested_filename
+                        if not filename or filename in ["audio.ogg", "audio", "ptt"]:
+                            filename = f"downloaded_audio_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.ogg"
+
+                        output_path = _next_available_path(output_dir, filename)
+                        download.save_as(str(output_path))
+                        print(
+                            f"Successfully downloaded latest sent audio: {output_path}"
+                        )
+                        return str(output_path)
+
+                # 2. Fallback Strategy: Find the absolute bottom-most audio control on screen.
+                # This handles cases where '.message-out' might have changed or isn't matching correctly.
+                all_candidates = self.page.get_by_text(AUDIO_PATTERN).all()
+                if not all_candidates:
+                    # Final fallback to generic buttons
+                    all_candidates = self.page.locator(
+                        self.VOICE_BUTTONS_SELECTOR
+                    ).all()
+
+                if all_candidates:
+                    # Calculate bottom Y for each and pick the highest
+                    boxes = []
+                    for cand in all_candidates:
                         try:
-                            if not button.is_visible():
+                            if not cand.is_visible():
                                 continue
-
-                            button_box = button.bounding_box()
-                            if not button_box:
-                                continue
-
-                            visible_count += 1
-
-                            container = button.locator(
-                                "xpath=ancestor::div[contains(@class, '_ak4a')][1]"
-                            )
-                            if container.count() == 0:
-                                container = button.locator(
-                                    "xpath=ancestor::div[@role='gridcell'][1]"
-                                )
-                            if container.count() == 0:
-                                continue
-
-                            box = container.first.bounding_box()
-                            if not box:
-                                continue
-
-                            container_bottom = box["y"] + box["height"]
-                            container_center_x = box["x"] + (box["width"] / 2)
-                            button_center_y = button_box["y"] + (
-                                button_box["height"] / 2
-                            )
-                            button_center_x = button_box["x"] + (
-                                button_box["width"] / 2
-                            )
-                            is_lower_band = container_bottom >= lower_band_y
-                            signature = (
-                                int(round(button_center_y)),
-                                int(round(button_center_x)),
-                            )
-
-                            entry = (
-                                (container_bottom, button_center_x, container_center_x),
-                                button,
-                                container.first,
-                            )
-                            fallback_candidates.append(entry)
-                            if signature not in previous_visible_audio_signatures:
-                                new_fallback_candidates.append(entry)
-                            if is_lower_band:
-                                lower_band_visible_count += 1
-                                lower_band_fallback_candidates.append(entry)
-                                if signature not in previous_visible_audio_signatures:
-                                    lower_band_new_fallback_candidates.append(entry)
-
-                            # Prefer outgoing (right side) messages, then the bottom-most bubble.
-                            if button_center_x > (page_width * 0.55):
-                                outgoing_candidates.append(entry)
-                                if signature not in previous_visible_audio_signatures:
-                                    new_outgoing_candidates.append(entry)
-                                if is_lower_band:
-                                    lower_band_outgoing_candidates.append(entry)
-                                    if (
-                                        signature
-                                        not in previous_visible_audio_signatures
-                                    ):
-                                        lower_band_new_outgoing_candidates.append(entry)
+                            box = cand.bounding_box()
+                            if box:
+                                boxes.append((box["y"] + box["height"], cand))
                         except Exception:
                             continue
 
-                    # Wait until at least one new visible audio appears after send.
-                    if visible_count <= previous_visible_audio_count:
-                        self.page.wait_for_timeout(300)
-                        continue
-
-                    candidates = (
-                        lower_band_new_outgoing_candidates
-                        or lower_band_new_fallback_candidates
-                        or lower_band_outgoing_candidates
-                        or lower_band_fallback_candidates
-                        or new_outgoing_candidates
-                        or new_fallback_candidates
-                        or outgoing_candidates
-                        or fallback_candidates
-                    )
-                    if candidates:
-                        latest_key, latest_button, latest_container = max(
-                            candidates, key=lambda x: x[0]
-                        )
-
-                    if latest_container is not None and latest_button is not None:
-                        selected_bottom = latest_key[0]
+                    if boxes:
+                        boxes.sort(key=lambda x: x[0], reverse=True)
+                        target = boxes[0][1]
                         print(
-                            "Found new audio message; selecting latest "
-                            f"{'new outgoing' if lower_band_new_outgoing_candidates else ('new visible' if lower_band_new_fallback_candidates else ('outgoing' if lower_band_outgoing_candidates else ('visible' if lower_band_fallback_candidates else ('new outgoing' if new_outgoing_candidates else ('new visible' if new_fallback_candidates else ('outgoing' if outgoing_candidates else 'visible'))))))} audio button "
-                            f"(visible={visible_count}, lower_band={lower_band_visible_count}, previous={previous_visible_audio_count}, bottom={selected_bottom:.1f})..."
+                            f"Fallback: Selecting absolute bottom-most audio element (Y={boxes[0][0]:.1f})"
                         )
-                        latest_button.scroll_into_view_if_needed()
-                        latest_container.scroll_into_view_if_needed()
 
-                        return self._find_and_click_download(
-                            latest_container, latest_button, output_dir
-                        )
+                        target.scroll_into_view_if_needed()
+                        target.click(button="right")
+                        with self.page.expect_download(timeout=10000) as download_info:
+                            self.page.get_by_role("menuitem", name="Scarica").click()
+
+                        download = download_info.value
+                        filename = download.suggested_filename
+                        if not filename or filename in ["audio.ogg", "audio", "ptt"]:
+                            filename = f"downloaded_audio_fallback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.ogg"
+
+                        output_path = _next_available_path(output_dir, filename)
+                        download.save_as(str(output_path))
+                        return str(output_path)
 
             except Exception as e:
-                print(f"Error during search: {e}")
-
-            self.page.wait_for_timeout(500)
+                print(f"Retrying download... ({e})")
+                self.page.wait_for_timeout(300)
 
         raise RuntimeError(
-            "Could not find audio message within the configured timeout."
+            "Could not find and download the audio message at the bottom of the chat."
         )
 
     def _find_and_click_download(
         self, audio_container, audio_button, output_dir: Path
     ) -> str:
-        """Right-click near the bottom of the latest audio bubble and click download."""
-        deadline = time.monotonic() + 15
-        print("Opening context menu on latest audio message...")
-
-        download = None
-        attempt = 0
-
-        while time.monotonic() < deadline and download is None:
-            attempt += 1
-
-            try:
-                audio_container.wait_for(state="visible", timeout=1000)
-                audio_container.scroll_into_view_if_needed()
-
-                container_box = audio_container.bounding_box()
-                if not container_box:
-                    self.page.wait_for_timeout(250)
-                    continue
-
-                button_box = None
-                try:
-                    button_box = audio_button.bounding_box()
-                except Exception:
-                    button_box = None
-
-                # The chat viewport is stable, so aim at a fixed point near the
-                # lower-right of the bubble to consistently hit the latest sent audio.
-                click_x = container_box["x"] + container_box["width"] - 24
-                click_y = container_box["y"] + container_box["height"] - 12
-
-                if button_box and button_box["width"] > 0:
-                    click_x = max(
-                        container_box["x"] + 2,
-                        min(
-                            container_box["x"] + container_box["width"] - 2,
-                            button_box["x"] + button_box["width"] - 6,
-                        ),
-                    )
-
-                if attempt % 2 == 0:
-                    click_x -= 4
-                elif attempt % 3 == 0:
-                    click_x += 4
-
-                # Clamp inside bubble bounds.
-                click_x = max(
-                    container_box["x"] + 2,
-                    min(container_box["x"] + container_box["width"] - 2, click_x),
-                )
-                click_y = max(
-                    container_box["y"] + 2,
-                    min(container_box["y"] + container_box["height"] - 2, click_y),
-                )
-
-                self.page.mouse.click(click_x, click_y, button="right")
-            except Exception:
-                self.page.wait_for_timeout(250)
-                continue
-
-            self.page.wait_for_timeout(250)
-
-            for selector in self.DOWNLOAD_MENU_ITEMS:
-                try:
-                    menu_item = self.page.locator(selector).first
-                    menu_item.wait_for(state="visible", timeout=600)
-
-                    with self.page.expect_download(timeout=3_000) as download_info:
-                        menu_item.click(timeout=500)
-
-                    download = download_info.value
-                    print(f"Clicked menu item for download: {selector}")
-                    break
-                except PlaywrightTimeoutError:
-                    continue
-                except Exception:
-                    continue
-
-            if download is None:
-                if attempt % 3 == 1:
-                    print(f"Download menu item not captured yet (attempt {attempt})")
-                try:
-                    self.page.keyboard.press("Escape")
-                except Exception:
-                    pass
-                self.page.wait_for_timeout(250)
-
-        if download is None:
-            raise RuntimeError(
-                "Could not click download from context menu after right-clicking the latest audio."
-            )
-
-        filename = download.suggested_filename
-
-        # Generate a timestamped filename if needed
-        if (
-            not filename
-            or filename == "audio.ogg"
-            or filename == "audio"
-            or filename == "ptt"
-        ):
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"downloaded_audio_{timestamp}.ogg"
-
-        output_path = _next_available_path(output_dir, filename)
-        download.save_as(str(output_path))
-
-        print(f"Audio downloaded successfully to: {output_path}")
-        return str(output_path)
+        # Obsolete
+        return ""
 
     def play_audio(self) -> None:
         """Execute the playback script that feeds audio to the virtual microphone."""
@@ -507,9 +337,6 @@ class WhatsAppAutomation(SocialMediaAutomation):
         except Exception as exc:
             playback_error = exc
 
-        previous_visible_audio_count = self._count_visible_voice_buttons()
-        previous_visible_audio_signatures = self._visible_audio_signatures()
-
         print("Trying to send the recorded audio...")
         self.send_recording()
 
@@ -517,10 +344,7 @@ class WhatsAppAutomation(SocialMediaAutomation):
             raise playback_error
 
         print("Waiting for audio to be downloaded...")
-        downloaded_path = self.download_audio(
-            previous_visible_audio_count,
-            previous_visible_audio_signatures,
-        )
+        downloaded_path = self.download_audio(0, set())
         print(f"Audio file downloaded to: {downloaded_path}")
 
         return downloaded_path
