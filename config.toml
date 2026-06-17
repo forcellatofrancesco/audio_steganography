@@ -2,8 +2,8 @@
 waveform = "output/output.wav"
 message = "output/out.txt"
 automation_runs_csv = "output/260530_bpsk_ecc.csv"
-encode_decode_no_wa = "output/improved_bpsk.csv"
-decoded_csv = "output/improved_bpsk_wa.csv"
+encode_decode_no_wa = "output/no_sin_with_sum_no_wa.csv"
+decoded_csv = "output/no_sin_with_sum.csv"
 
 [input]
 # waveform = "output/out.ogg"

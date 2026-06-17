@@ -61,7 +61,7 @@ def decode_symbol_values_bpsk(
     if middle_indices.size == 0:
         return np.array([], dtype=np.int8)
 
-    return np.where(np.sin(phase[middle_indices]) < 0, -1, 1).astype(np.int8)
+    return np.where(phase[middle_indices] < 0, -1, 1).astype(np.int8)
 
 
 def detect_preamble(
@@ -192,16 +192,16 @@ def decode_from_audio(
             frequency,
         )
 
+    if decoded_bits.shape[0] < len(preamble):
+        return b"", "not-valid-preamble"
+    
     preamble_values = convert_to_1_1(np.asarray(preamble))
-    if not np.array_equal(decoded_bits[: len(preamble)], preamble_values):
-        inverted_decoded_bits = decoded_bits * -1
-        if np.array_equal(inverted_decoded_bits[: len(preamble)], preamble_values):
-            decoded_bits = inverted_decoded_bits
-        else:
-            return (
-                bits_to_bytes(convert_to_0_1(decoded_bits)),
-                "not-valid-preamble",
-            )
+    checksum = np.sum(preamble_values * decoded_bits[: len(preamble)])
+    if (checksum > 0 and checksum < 11) or (checksum < 0 and checksum > -11):
+        return b"", "not-valid-preamble"
+
+    if checksum < 0:
+        decoded_bits = decoded_bits * -1
 
     # Strip leading preamble
     payload_bits = convert_to_0_1(decoded_bits[len(preamble) :])
