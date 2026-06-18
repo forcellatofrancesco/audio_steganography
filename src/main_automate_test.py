@@ -49,10 +49,16 @@ def _run_parameter_grid(
     print(f"Starting {algorithm} run. CSV output: {csv_output_path}")
 
     param_grid = {
-        "frequency": np.linspace(150, 400, num=10).astype(int),
-        "volume_gain_data": np.linspace(0.15, 1.0, num=10),
+        "frequency": np.linspace(200, 400, num=10).astype(int),
+        "volume_gain_data": np.linspace(0.25, 0.9, num=5),
         "message": test_messages.messages,
+        "cycles_per_symbol": [2, 5, 7],
     }
+    # param_grid = {
+    #     "frequency": list(itertools.repeat(250, 10)),
+    #     "volume_gain_data": [0.7],
+    #     "message": ["Hi!"],
+    # }
     keys = list(param_grid.keys())
     values = list(param_grid.values())
     total = sum(1 for _ in itertools.product(*values))
@@ -60,6 +66,7 @@ def _run_parameter_grid(
     csv_output_path.parent.mkdir(parents=True, exist_ok=True)
     csv_exists = csv_output_path.exists()
 
+    ######################################################### TODO: re-add it
     completed_keys: set[tuple[str, ...]] = set()
     if csv_exists:
         with csv_output_path.open("r", newline="", encoding="utf-8") as csv_file:
@@ -70,10 +77,10 @@ def _run_parameter_grid(
                 if not all(k in row for k in keys):
                     continue
                 completed_keys.add(tuple(_normalize_param(row[k]) for k in keys))
-
     print(
         f"Resume status for {algorithm}: {len(completed_keys)}/{total} parameter sets already completed."
     )
+
     with csv_output_path.open("a", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(
             csv_file,
@@ -82,8 +89,9 @@ def _run_parameter_grid(
         if not csv_exists:
             writer.writeheader()
         percentage = 0.0
-        for combo in itertools.product(*values):
+        for index, combo in enumerate(itertools.product(*values)):
             params = dict(zip(keys, combo))
+            # TODO: READD IT
             current_key = _params_key(params, keys)
             if current_key in completed_keys:
                 continue
@@ -96,6 +104,7 @@ def _run_parameter_grid(
                     frequency=params["frequency"],
                     high_pass_filter=params["frequency"] + 50,
                     volume_gain_data=params["volume_gain_data"],
+                    cycles_per_symbol=params["cycles_per_symbol"],
                 )
                 byte_data = params["message"].encode("utf-8")
                 encode_from_config(
@@ -108,7 +117,19 @@ def _run_parameter_grid(
                     audio_config,
                 )
                 downloaded_path = automation.run()
-
+                source = Path(
+                    config_file["output"]["waveform"],
+                )
+                current_temp = f"{config_file['whatsapp_automation']['download_output_path']}/out_{index:03}.wav"
+                source.rename(current_temp)
+                writer.writerow(
+                    {
+                        **params,
+                        "volume_noise": audio_config.volume_noise,
+                        "download_path": current_temp,
+                        "type": "uncompressed",
+                    }
+                )
                 writer.writerow(
                     {
                         **params,
@@ -116,19 +137,14 @@ def _run_parameter_grid(
                         "download_path": (
                             str(downloaded_path) if downloaded_path else ""
                         ),
-                        "status": "success",
+                        "type": "compressed",
                     }
                 )
                 csv_file.flush()
+
+                # TODO: readd it
                 completed_keys.add(current_key)
             except Exception:
-                writer.writerow(
-                    {
-                        **params,
-                        "download_path": "",
-                        "status": "failed",
-                    }
-                )
                 csv_file.flush()
                 raise
 
@@ -172,12 +188,12 @@ def main():
 
             automation_runs = [
                 (
-                    "dbpsk",
-                    Path("output/260530_dbpsk_ecc.csv"),
+                    "bpsk",
+                    Path("output/260618_ultimate_bspk.csv"),
                 ),
                 (
-                    "bpsk",
-                    Path("output/260530_bpsk_ecc.csv"),
+                    "dbpsk",
+                    Path("output/260618_ultimate_dbpsk.csv"),
                 ),
             ]
 

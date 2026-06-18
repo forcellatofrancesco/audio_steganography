@@ -136,9 +136,15 @@ def detect_preamble(
     )
 
     # pick the offset with maximum absolute normalized inner product
+
+    ordered = np.argsort(np.abs(scores))
     best = int(np.argmax(np.abs(scores)))
     best = best - expected_analytic.shape[0] // 2
-
+    # i = -1
+    # best = ordered[i] - expected_analytic.shape[0] // 2
+    # while best < 0:
+    #     i = i - 1
+    #     best = ordered[i] - expected_analytic.shape[0] // 2
     return best
 
 
@@ -162,7 +168,7 @@ def decode_from_audio(
     frequency: int,
     cycles_per_symbol: float,
     algorithm: str,
-) -> tuple[bytes, str]:
+) -> tuple[bytes, str, int]:
     if frequency <= 0:
         raise ValueError("frequency must be positive.")
     if cycles_per_symbol <= 0:
@@ -204,7 +210,7 @@ def decode_from_audio(
         )
 
     if decoded_bits.shape[0] < len(preamble):
-        return b"", "not-valid-preamble"
+        return b"", "not-valid-preamble", start_index
 
     ######################################################################################
     # Per il messaggio HI!
@@ -217,7 +223,7 @@ def decode_from_audio(
     preamble_values = convert_to_1_1(np.asarray(preamble))
     checksum = np.sum(preamble_values * decoded_bits[: len(preamble)])
     if (checksum > 0 and checksum < 11) or (checksum < 0 and checksum > -11):
-        return b"", "not-valid-preamble"
+        return b"", "not-valid-preamble", start_index
 
     if checksum < 0:
         decoded_bits = decoded_bits * -1
@@ -225,17 +231,17 @@ def decode_from_audio(
     # Strip leading preamble
     payload_bits = convert_to_0_1(decoded_bits[len(preamble) :])
     if len(payload_bits) < ENCODED_HEADER_BITS:
-        return b"", "no-header-in-payload"
+        return b"", "no-header-in-payload", start_index
 
     header_bits, _ = decode_hamming_7_4(payload_bits[:ENCODED_HEADER_BITS])
     if len(header_bits) < HEADER_DATA_BITS:
-        return b"", "no-header-in-payload"
+        return b"", "no-header-in-payload", start_index
 
     version, ecc_scheme, payload_length_bytes = parse_header_bits(header_bits)
     if version != HEADER_VERSION:
-        return b"", "unsupported-header-version"
+        return b"", "unsupported-header-version", start_index
     if ecc_scheme not in {ECC_SCHEME_NONE, ECC_SCHEME_HAMMING_7_4}:
-        return b"", "unsupported-ecc-scheme"
+        return b"", "unsupported-ecc-scheme", start_index
 
     payload_bits = payload_bits[ENCODED_HEADER_BITS:]
     if ecc_scheme == ECC_SCHEME_NONE:
@@ -246,7 +252,7 @@ def decode_from_audio(
 
     payload_length_bits = payload_length_bytes * 8
     if len(decoded_payload_bits) < payload_length_bits:
-        return bits_to_bytes(decoded_payload_bits), "paylod-too-short"
+        return bits_to_bytes(decoded_payload_bits), "paylod-too-short", start_index
 
     decoded_payload_bits = decoded_payload_bits[:payload_length_bits]
     ####################################################################
@@ -262,4 +268,4 @@ def decode_from_audio(
     message = bits_to_bytes(decoded_payload_bits).decode("utf-8", errors="replace")
     print(message)
     ###################################################################
-    return bits_to_bytes(decoded_payload_bits), "valid-preamble"
+    return bits_to_bytes(decoded_payload_bits), "valid-preamble", start_index

@@ -30,6 +30,7 @@ def report_progress(completed: int, total: int, last_printed: int) -> int:
 
 def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
     """Decode a single row's audio data."""
+    print(f"CURRENT = {row.get("download_path", "ERROR")}")
     waveform, sample_rate = load_waveform_from_file(row.get("download_path", ""))
     return {
         **row,
@@ -58,11 +59,11 @@ def main():
 
     df = pd.read_csv(input_path)
 
-    df = df[df["message"] == "Hi!"]
-    df = df[(df["frequency"] > 200)]
-    df = df[df["volume_gain_data"] > 0.3]
-    print(df.shape[0])
-    print("_________ REMOVE FILTER FOR PROD ____________")
+    # df = df[df["message"] == "Hi!"]
+    # df = df[(df["frequency"] > 200)]
+    # df = df[df["volume_gain_data"] > 0.3]
+    # print(df.shape[0])
+    # print("_________ REMOVE FILTER FOR PROD ____________")
     rows = df.fillna("").to_dict(orient="records")
     path_counts = Counter(row.get("download_path", "") for row in rows)
     duplicated_paths = {
@@ -102,6 +103,7 @@ def main():
         "error_rate",
         "decoded_data",
         "decode_status",
+        "start_index",
     ]
     pd.DataFrame(decoded_rows).reindex(columns=keys).to_csv(output_path, index=False)
 

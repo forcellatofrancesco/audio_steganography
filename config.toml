@@ -1,13 +1,12 @@
 [output]
 waveform = "output/output.wav"
 message = "output/out.txt"
-automation_runs_csv = "output/260530_bpsk_ecc.csv"
+automation_runs_csv = "output/260618_ultimate.csv"
 encode_decode_no_wa = "output/no_sin_with_sum_no_wa.csv"
-decoded_csv = "output/help.csv"
+decoded_csv = "output/260618_decoded_ultimate_bpsk.csv"
 
 [input]
-# waveform = "output/out.ogg"
-waveform = "output/output.wav" # do not use, it is the original
+waveform = "output/output.wav"
 message = "input/message.txt"
 
 [audio]
@@ -49,4 +48,4 @@ send_button_wait_timeout_ms = 20000
 post_send_settle_delay_ms = 1250
 download_wait_timeout_ms = 30000
 playback_script_path = "src/util/scripts/virtual_microphone/play_mic.sh"
-download_output_path = "output/260530_whatsaudio"
+download_output_path = "output/260618_whatsaudio"

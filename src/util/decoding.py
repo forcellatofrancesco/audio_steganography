@@ -18,7 +18,7 @@ def decode_and_score_message(
     algorithm: str,
 ) -> dict[str, Any]:
     """Decode a waveform and compare the recovered message with the expected text."""
-    recovered_data, decode_status = decode_from_audio(
+    recovered_data, decode_status, start_index = decode_from_audio(
         waveform,
         preamble,
         sample_rate=sample_rate,
@@ -39,4 +39,5 @@ def decode_and_score_message(
         "error_rate": error_rate,
         "decoded_data": recovered_data,
         "decode_status": decode_status,
+        "start_index": start_index,
     }
