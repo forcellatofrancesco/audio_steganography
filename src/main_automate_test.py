@@ -8,6 +8,7 @@ To switch between social media platforms, change the import and instantiation
 at the bottom of this file. Currently uses WhatsApp.
 """
 
+import datetime
 import tomllib
 import csv
 from pathlib import Path
@@ -54,6 +55,7 @@ def _run_parameter_grid(
         "message": test_messages.messages,
         "cycles_per_symbol": [2, 5, 7],
     }
+    # TODO: this is just for the synthetic tests
     # param_grid = {
     #     "frequency": list(itertools.repeat(250, 10)),
     #     "volume_gain_data": [0.7],
@@ -84,7 +86,7 @@ def _run_parameter_grid(
     with csv_output_path.open("a", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(
             csv_file,
-            fieldnames=[*keys, "volume_noise", "download_path", "status"],
+            fieldnames=[*keys, "volume_noise", "download_path", "type"],
         )
         if not csv_exists:
             writer.writeheader()
@@ -120,7 +122,7 @@ def _run_parameter_grid(
                 source = Path(
                     config_file["output"]["waveform"],
                 )
-                current_temp = f"{config_file['whatsapp_automation']['download_output_path']}/out_{index:03}.wav"
+                current_temp = f"{config_file['whatsapp_automation']['download_output_path']}/{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}{index:03}.wav"
                 source.rename(current_temp)
                 writer.writerow(
                     {
