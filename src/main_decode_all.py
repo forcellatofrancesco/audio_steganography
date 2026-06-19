@@ -59,7 +59,7 @@ def main():
 
     df = pd.read_csv(input_path)
     # df = df[df["type"] == "uncompressed"]
-    df = df[df["cycles_per_symbol"] == 2]
+    # df = df[df["cycles_per_symbol"] == 2]
     # df = df[df["message"] == "Hi!"]
     # df = df[(df["frequency"] > 200)]
     # df = df[df["volume_gain_data"] > 0.3]
@@ -79,7 +79,7 @@ def main():
     total_rows = len(rows)
     last_printed = -1
 
-    with ThreadPoolExecutor(max_workers=24) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         decoded_rows = []
         for idx, result in enumerate(
             executor.map(

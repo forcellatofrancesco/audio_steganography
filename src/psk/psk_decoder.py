@@ -1,5 +1,4 @@
 import numpy as np
-
 from audio.audiowaves import low_pass_filter
 from bit_phase.bit_phase import bits_to_bytes, bits_to_phase_wave
 from psk.ecc import (
@@ -68,7 +67,7 @@ def decode_symbol_values_bpsk(
     return np.where(phase[middle_indices] < 0, -1, 1).astype(np.int8)
 
 
-def detect_preamble(
+def detect_preamble_old(
     waveform: value_array,
     preamble: bit_array,
     sample_rate=44100,
@@ -143,12 +142,86 @@ def detect_preamble(
     return best
 
 
+def detect_preamble(
+    waveform: value_array,
+    preamble: bit_array,
+    sample_rate=44100,
+    frequency=440,
+    cycles_per_symbol=1.0,
+    algorithm: str = "dbpsk",
+) -> int:
+    try:
+        import cupy as cp
+        xp = cp
+        use_gpu = True
+    except ImportError:
+        xp = np
+        use_gpu = False
+
+    if waveform.size == 0:
+        return 0
+
+    preamble = np.asarray(preamble, dtype=np.int8).reshape(-1)
+    if algorithm == "bpsk":
+        encoded_preamble = preamble
+    elif algorithm == "dbpsk":
+        encoded_preamble = encode_dbpsk_list(np.asarray(preamble, dtype=np.int8))
+    else:
+        raise ValueError(algorithm, "algorithm not recognized")
+
+    expected = bits_to_phase_wave(
+        encoded_preamble, frequency, cycles_per_symbol, sample_rate
+    )
+
+    if expected.size == 0 or waveform.size < expected.size:
+        return 0
+
+    # Transfer to GPU if available
+    candidate = xp.asarray(np.real(np.asarray(waveform)), dtype=xp.float64)
+    candidate = candidate - xp.mean(candidate)
+
+    expected_gpu = xp.asarray(np.real(np.asarray(expected)), dtype=xp.float64)
+    expected_gpu = expected_gpu - xp.mean(expected_gpu)
+    win_len = expected_gpu.size
+
+    if candidate.size < win_len:
+        return 0
+
+    # On GPU, FFT-based correlation is dramatically faster for long templates
+    if use_gpu:
+        # cupy.correlate uses FFT internally for large arrays
+        raw_scores = xp.correlate(candidate, expected_gpu, mode="same")
+    else:
+        raw_scores = xp.correlate(candidate, expected_gpu, mode="same")
+
+    template_energy = xp.sum(xp.abs(expected_gpu) ** 2)
+    if template_energy == 0:
+        return 0
+
+    candidate_power = xp.abs(candidate) ** 2
+    candidate_energy = xp.convolve(
+        candidate_power, xp.ones(win_len, dtype=xp.float64), mode="same"
+    )
+    denom = xp.sqrt(candidate_energy * template_energy)
+    scores = xp.where(denom > 0, raw_scores / denom, xp.zeros_like(raw_scores))
+
+    best = int(xp.argmax(xp.abs(scores)))
+
+    # Transfer scalar back to CPU
+    if use_gpu:
+        best = int(xp.asnumpy(xp.array(best))) # type: ignore
+
+    best = best - int(expected_gpu.shape[0]) // 2
+    return best
+
+
 def convert_to_1_1(a: bit_array) -> value_array:
     return np.where(a > 0, 1, -1).astype(np.int8)
 
 
 def convert_to_0_1(a: value_array) -> bit_array:
     return np.where(a > 0, 1, 0).astype(np.int8)
+
 
 # TODO: remove
 # out_trimmed_waveform = None
