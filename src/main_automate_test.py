@@ -176,6 +176,21 @@ def main():
             ],
             viewport={"width": 1270, "height": 720},
         )
+        # Disable auto-gain microphone features: stable virtual microphone
+        context.add_init_script("""
+            const origGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getUserMedia = function(constraints) {
+                if (constraints && constraints.audio) {
+                    if (typeof constraints.audio === 'boolean') {
+                        constraints.audio = {};
+                    }
+                    constraints.audio.autoGainControl = false;
+                    constraints.audio.noiseSuppression = false;
+                    constraints.audio.echoCancellation = false;
+                }
+                return origGUM(constraints);
+            };
+        """)
 
         try:
             # Instantiate WhatsApp automation
@@ -191,7 +206,7 @@ def main():
             automation_runs = [
                 (
                     "bpsk",
-                    Path("output/260618_ultimate_bspk.csv"),
+                    Path("output/260618_ultimate_bpsk.csv"),
                 ),
                 (
                     "dbpsk",

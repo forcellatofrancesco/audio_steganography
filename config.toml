@@ -1,9 +1,9 @@
 [output]
 waveform = "output/output.wav"
 message = "output/out.txt"
-automation_runs_csv = "output/260618_ultimate.csv"
+automation_runs_csv = "output/260618_ultimate_dbpsk.csv"
 encode_decode_no_wa = "output/no_sin_with_sum_no_wa.csv"
-decoded_csv = "output/260618_decoded_ultimate_bpsk.csv"
+decoded_csv = "output/260618_decoded_ultimate_dbpsk.csv"
 
 [input]
 waveform = "output/output.wav"
@@ -25,7 +25,7 @@ preamble = [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0] # Barker sequence [+1, +1, +1
 # Available encoding - decoding algorithms:
 # - bpsk  = bit phase shift keying
 # - dbpsk = differential bit phase shift keying
-encoding_decoding = "bpsk"
+encoding_decoding = "dbpsk"
 # Optional: set an integer seed to make audio shuffle and noise generation deterministic.
 shuffle_seed = 12345
 

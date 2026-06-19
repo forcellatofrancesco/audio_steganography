@@ -28,9 +28,9 @@ def report_progress(completed: int, total: int, last_printed: int) -> int:
     return last_printed
 
 
-def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
+def decode_row(row, preamble, encoding_decoding_algorithm):
     """Decode a single row's audio data."""
-    print(f"CURRENT = {row.get("download_path", "ERROR")}")
+    # print(f"CURRENT = {row.get("download_path", "ERROR")}")
     waveform, sample_rate = load_waveform_from_file(row.get("download_path", ""))
     return {
         **row,
@@ -40,7 +40,7 @@ def decode_row(row, preamble, cycles_per_symbol, encoding_decoding_algorithm):
             row.get("message", ""),
             preamble,
             int(float(row.get("frequency", -1.0))),
-            cycles_per_symbol,
+            int(row.get("cycles_per_symbol")),
             encoding_decoding_algorithm,
         ),
     }
@@ -58,7 +58,8 @@ def main():
     output_path = config["output"]["decoded_csv"]
 
     df = pd.read_csv(input_path)
-
+    # df = df[df["type"] == "uncompressed"]
+    df = df[df["cycles_per_symbol"] == 2]
     # df = df[df["message"] == "Hi!"]
     # df = df[(df["frequency"] > 200)]
     # df = df[df["volume_gain_data"] > 0.3]
@@ -78,14 +79,13 @@ def main():
     total_rows = len(rows)
     last_printed = -1
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=24) as executor:
         decoded_rows = []
         for idx, result in enumerate(
             executor.map(
                 decode_row,
                 rows,
                 repeat(preamble),
-                repeat(cycles_per_symbol),
                 repeat(encoding_decoding_algorithm),
             ),
             1,
@@ -99,11 +99,12 @@ def main():
         "message",
         "volume_noise",
         "download_path",
-        "status",
         "error_rate",
         "decoded_data",
         "decode_status",
         "start_index",
+        "cycles_per_symbol",
+        "type",
     ]
     pd.DataFrame(decoded_rows).reindex(columns=keys).to_csv(output_path, index=False)
 

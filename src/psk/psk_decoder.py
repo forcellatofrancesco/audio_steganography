@@ -49,9 +49,10 @@ def decode_symbol_values_bpsk(
     osc = np.exp(-1j * 2 * np.pi * time_vector * frequency)
     baseband = low_pass_filter(osc * waveform, sample_rate)
     phase = np.angle(baseband)
+    # TODO: remove
     ###################################################################
-    global out_phase
-    out_phase = phase
+    # global out_phase
+    # out_phase = phase
     ###################################################################
     start_indices = np.arange(
         0, phase.size - samples_per_symbol + 1, samples_per_symbol
@@ -137,14 +138,8 @@ def detect_preamble(
 
     # pick the offset with maximum absolute normalized inner product
 
-    ordered = np.argsort(np.abs(scores))
     best = int(np.argmax(np.abs(scores)))
     best = best - expected_analytic.shape[0] // 2
-    # i = -1
-    # best = ordered[i] - expected_analytic.shape[0] // 2
-    # while best < 0:
-    #     i = i - 1
-    #     best = ordered[i] - expected_analytic.shape[0] // 2
     return best
 
 
@@ -155,10 +150,10 @@ def convert_to_1_1(a: bit_array) -> value_array:
 def convert_to_0_1(a: value_array) -> bit_array:
     return np.where(a > 0, 1, 0).astype(np.int8)
 
-
-out_trimmed_waveform = None
-out_phase = None
-out_expected = None
+# TODO: remove
+# out_trimmed_waveform = None
+# out_phase = None
+# out_expected = None
 
 
 def decode_from_audio(
@@ -189,8 +184,8 @@ def decode_from_audio(
 
     trimmed_waveform = np.asarray(waveform[start_index:], dtype=np.float64)
     ###################################################################
-    global out_trimmed_waveform
-    out_trimmed_waveform = trimmed_waveform
+    # global out_trimmed_waveform
+    # out_trimmed_waveform = trimmed_waveform
     ###################################################################
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     decoded_bits = np.array([], dtype=np.int8)
@@ -255,17 +250,18 @@ def decode_from_audio(
         return bits_to_bytes(decoded_payload_bits), "paylod-too-short", start_index
 
     decoded_payload_bits = decoded_payload_bits[:payload_length_bits]
+    # TODO: remove
     ####################################################################
-    global out_expected
-    out_expected, _ = encode_to_audio(
-        "Hi!".encode("utf-8"),
-        preamble,
-        sample_rate,
-        frequency,
-        cycles_per_symbol,
-        algorithm,
-    )
-    message = bits_to_bytes(decoded_payload_bits).decode("utf-8", errors="replace")
-    print(message)
+    # global out_expected
+    # out_expected, _ = encode_to_audio(
+    #     "Hi!".encode("utf-8"),
+    #     preamble,
+    #     sample_rate,
+    #     frequency,
+    #     cycles_per_symbol,
+    #     algorithm,
+    # )
+    # message = bits_to_bytes(decoded_payload_bits).decode("utf-8", errors="replace")
+    # print(message)
     ###################################################################
     return bits_to_bytes(decoded_payload_bits), "valid-preamble", start_index
