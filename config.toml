@@ -3,7 +3,7 @@ waveform = "output/output.wav"
 message = "output/out.txt"
 automation_runs_csv = "output/260618_ultimate_bpsk.csv"
 encode_decode_no_wa = "output/no_sin_with_sum_no_wa.csv"
-decoded_csv = "output/260618_decoded_ultimate_bpsk.csv"
+decoded_csv = "output/260618_decoded_ultimate_bpsk_costas.csv"
 
 [input]
 waveform = "output/output.wav"

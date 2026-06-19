@@ -1,6 +1,7 @@
 import numpy as np
 from audio.audiowaves import low_pass_filter
 from bit_phase.bit_phase import bits_to_bytes, bits_to_phase_wave
+from psk.costas import run_costas_loop
 from psk.ecc import (
     ECC_SCHEME_HAMMING_7_4,
     ECC_SCHEME_NONE,
@@ -19,6 +20,7 @@ def decode_symbol_values_dbpsk(
     samples_per_symbol: int,
     sample_rate: int,
     frequency: int,
+    phase_track: np.ndarray | None = None,  # <-- nuovo
 ) -> value_array:
     waveform = np.asarray(trimmed_waveform, dtype=np.float64)
     usable_len = waveform.size - (waveform.size % samples_per_symbol)
@@ -26,7 +28,13 @@ def decode_symbol_values_dbpsk(
         return np.array([], dtype=np.int8)
 
     time_vector = np.arange(usable_len) / sample_rate
-    osc = np.exp(-1j * 2 * np.pi * frequency * time_vector)
+
+    if phase_track is not None and phase_track.size >= usable_len:
+        # Fase istantanea dal Costas loop, campione per campione
+        osc = np.exp(-1j * phase_track[:usable_len])
+    else:
+        osc = np.exp(-1j * 2 * np.pi * frequency * time_vector)
+
     mixed = waveform[:usable_len] * osc
     symbol_values = mixed.reshape(-1, samples_per_symbol).mean(axis=1)
 
@@ -39,20 +47,20 @@ def decode_symbol_values_bpsk(
     samples_per_symbol: int,
     sample_rate: int,
     frequency: int,
+    phase_track: np.ndarray | None = None,  # <-- nuovo
 ) -> value_array:
     waveform = np.asarray(trimmed_waveform, dtype=np.float64)
     if waveform.size == 0:
         return np.array([], dtype=np.int8)
 
-    time_vector = np.arange(waveform.size) / sample_rate
-    osc = np.exp(-1j * 2 * np.pi * time_vector * frequency)
+    if phase_track is not None and phase_track.size >= waveform.size:
+        osc = np.exp(-1j * phase_track[: waveform.size])
+    else:
+        time_vector = np.arange(waveform.size) / sample_rate
+        osc = np.exp(-1j * 2 * np.pi * time_vector * frequency)
+
     baseband = low_pass_filter(osc * waveform, sample_rate)
     phase = np.angle(baseband)
-    # TODO: remove
-    ###################################################################
-    # global out_phase
-    # out_phase = phase
-    ###################################################################
     start_indices = np.arange(
         0, phase.size - samples_per_symbol + 1, samples_per_symbol
     )
@@ -152,6 +160,7 @@ def detect_preamble(
 ) -> int:
     try:
         import cupy as cp
+
         xp = cp
         use_gpu = True
     except ImportError:
@@ -209,7 +218,7 @@ def detect_preamble(
 
     # Transfer scalar back to CPU
     if use_gpu:
-        best = int(xp.asnumpy(xp.array(best))) # type: ignore
+        best = int(xp.asnumpy(xp.array(best)))  # type: ignore
 
     best = best - int(expected_gpu.shape[0]) // 2
     return best
@@ -261,6 +270,15 @@ def decode_from_audio(
     # out_trimmed_waveform = trimmed_waveform
     ###################################################################
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
+
+    phase_track = run_costas_loop(
+        trimmed_waveform,
+        frequency=frequency,
+        sample_rate=sample_rate,
+        loop_bw=0.015,  # buon punto di partenza per WhatsApp
+        modulation="bpsk",
+    )
+
     decoded_bits = np.array([], dtype=np.int8)
     if algorithm == "dbpsk":
         decoded_bits = decode_symbol_values_dbpsk(
@@ -268,6 +286,7 @@ def decode_from_audio(
             samples_per_symbol,
             sample_rate,
             frequency,
+            phase_track,
         )
     elif algorithm == "bpsk":
         decoded_bits = decode_symbol_values_bpsk(
@@ -275,6 +294,7 @@ def decode_from_audio(
             samples_per_symbol,
             sample_rate,
             frequency,
+            phase_track,
         )
 
     if decoded_bits.shape[0] < len(preamble):
