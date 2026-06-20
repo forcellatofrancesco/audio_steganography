@@ -49,11 +49,18 @@ def _run_parameter_grid(
     """Run the full parameter grid for a single encoding algorithm."""
     print(f"Starting {algorithm} run. CSV output: {csv_output_path}")
 
+    # Original
+    # param_grid = {
+    #     "frequency": np.linspace(200, 400, num=10).astype(int),
+    #     "volume_gain_data": np.linspace(0.25, 0.9, num=5),
+    #     "message": test_messages.messages,
+    #     "cycles_per_symbol": [2, 5, 7],
+    # }
     param_grid = {
-        "frequency": np.linspace(200, 400, num=10).astype(int),
-        "volume_gain_data": np.linspace(0.25, 0.9, num=5),
-        "message": test_messages.messages,
-        "cycles_per_symbol": [2, 5, 7],
+        "frequency": [150, 200, 250],
+        "volume_gain_data": [0.25, 0.5, 0.75, 1.0],
+        "message": np.repeat(test_messages.messages, 10, axis=0),
+        "cycles_per_symbol": [2],
     }
     # TODO: this is just for the synthetic tests
     # param_grid = {
@@ -69,20 +76,22 @@ def _run_parameter_grid(
     csv_exists = csv_output_path.exists()
 
     ######################################################### TODO: re-add it
-    completed_keys: set[tuple[str, ...]] = set()
-    if csv_exists:
-        with csv_output_path.open("r", newline="", encoding="utf-8") as csv_file:
-            reader = csv.DictReader(csv_file)
-            for row in reader:
-                if row.get("status", "").strip().lower() != "success":
-                    continue
-                if not all(k in row for k in keys):
-                    continue
-                completed_keys.add(tuple(_normalize_param(row[k]) for k in keys))
-    print(
-        f"Resume status for {algorithm}: {len(completed_keys)}/{total} parameter sets already completed."
-    )
-
+    # completed_keys: set[tuple[str, ...]] = set()
+    # if csv_exists:
+    #     with csv_output_path.open("r", newline="", encoding="utf-8") as csv_file:
+    #         reader = csv.DictReader(csv_file)
+    #         for row in reader:
+    #             if row.get("status", "").strip().lower() != "success":
+    #                 continue
+    #             if not all(k in row for k in keys):
+    #                 continue
+    #             completed_keys.add(tuple(_normalize_param(row[k]) for k in keys))
+    # print(
+    #     f"Resume status for {algorithm}: {len(completed_keys)}/{total} parameter sets already completed."
+    # )
+    completed = 0
+    start_time = datetime.datetime.now()
+    delta = None
     with csv_output_path.open("a", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(
             csv_file,
@@ -91,16 +100,23 @@ def _run_parameter_grid(
         if not csv_exists:
             writer.writeheader()
         percentage = 0.0
+        time = datetime.datetime.now()
+        delta = None
         for index, combo in enumerate(itertools.product(*values)):
             params = dict(zip(keys, combo))
             # TODO: READD IT
-            current_key = _params_key(params, keys)
-            if current_key in completed_keys:
-                continue
-            p = len(completed_keys) / total * 100.0
+            # current_key = _params_key(params, keys)
+            # if current_key in completed_keys:
+            #     continue
+            # p = len(completed_keys) / total * 100.0
+
+            p = completed / total * 100.0
             if p > percentage + 1.0:
                 percentage = p
-                print(f"Completed {algorithm}: {p}%")
+                delta = datetime.datetime.now() - start_time
+                elapsed_seconds = delta.total_seconds()  # avoids .seconds truncation bug
+                time_left = elapsed_seconds * (100 - percentage) / percentage
+                print(f"Completed {algorithm}: {p}%, remaining time: {time_left}")
             try:
                 audio_config = AudioConfig(
                     frequency=params["frequency"],
@@ -145,7 +161,8 @@ def _run_parameter_grid(
                 csv_file.flush()
 
                 # TODO: readd it
-                completed_keys.add(current_key)
+                # completed_keys.add(current_key)
+                completed += 1
             except Exception:
                 csv_file.flush()
                 raise
@@ -204,13 +221,13 @@ def main():
             print("The script will run DBPSK first and then BPSK in the same chat.")
 
             automation_runs = [
-                (
-                    "bpsk",
-                    Path("output/260618_ultimate_bpsk.csv"),
-                ),
+                # (
+                #     "bpsk",
+                #     Path("output/260618_ultimate_bpsk.csv"),
+                # ),
                 (
                     "dbpsk",
-                    Path("output/260618_ultimate_dbpsk.csv"),
+                    Path("output/260619_ultimate_specific_dpsk.csv"),
                 ),
             ]
 
