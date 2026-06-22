@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from typing import Optional
 from pandas import DataFrame
 import plotly.graph_objects as go
@@ -106,11 +107,11 @@ def plot_error_rate_heatmaps_by_message_comparison(
     df_b: DataFrame,
     label_a: str = "WhatsApp compression",
     label_b: str = "Best case",
-) -> None:
+) -> list[Figure]:
     plot_a = prepare_plot_df(df_a)
     plot_b = prepare_plot_df(df_b)
     messages = _build_message_list(df_a, df_b)
-
+    res = []
     for message in messages:
         pivot_a = _build_heatmap_pivot(plot_a, message)
         pivot_b = _build_heatmap_pivot(plot_b, message)
@@ -149,8 +150,9 @@ def plot_error_rate_heatmaps_by_message_comparison(
             color_bar.set_label("Error Rate")
         else:
             fig.subplots_adjust(top=0.84, wspace=0.18)
-
+        res.append(fig)
         plt.show()
+    return res
 
 
 def _plot_error_rate_lines_on_axis(
@@ -192,11 +194,11 @@ def plot_error_rate_vs_frequency_by_message_comparison(
     df_b: DataFrame,
     label_a: str = "WhatsApp compression",
     label_b: str = "Best case",
-) -> None:
+) -> list[Figure]:
     plot_a = prepare_plot_df(df_a)
     plot_b = prepare_plot_df(df_b)
     messages = _build_message_list(df_a, df_b)
-
+    res = []
     for message in messages:
         subset_a = plot_a[plot_a["message_label"] == message]
         subset_b = plot_b[plot_b["message_label"] == message]
@@ -212,7 +214,9 @@ def plot_error_rate_vs_frequency_by_message_comparison(
             y=1.03,
         )
         plt.tight_layout()
+        res.append(fig)
         plt.show()
+    return res
 
 
 def _select_volume_subset(
@@ -322,7 +326,7 @@ def plot_error_rate_variance_by_frequency_comparison(
     prefer_box_if_sparse: bool = True,
     min_points_per_group: int = 3,
     atol: float = 1e-9,
-) -> None:
+) -> Figure:
     plot_a = prepare_plot_df(df_a)
     plot_b = prepare_plot_df(df_b)
 
@@ -371,6 +375,7 @@ def plot_error_rate_variance_by_frequency_comparison(
             "Best case requested volume_gain_data not found exactly; "
             f"using nearest value {used_b:.6f}."
         )
+    return fig
 
 
 def plot_error_rate_variance_for_all_volume_gains_comparison(
@@ -380,7 +385,7 @@ def plot_error_rate_variance_for_all_volume_gains_comparison(
     label_b: str = "Best case",
     prefer_box_if_sparse: bool = True,
     min_points_per_group: int = 3,
-) -> None:
+) -> list[Figure]:
     plot_a = prepare_plot_df(df_a)
     plot_b = prepare_plot_df(df_b)
 
@@ -400,8 +405,9 @@ def plot_error_rate_variance_for_all_volume_gains_comparison(
     print(
         f"Generating {len(volume_values)} comparison plots (one per volume_gain_data)."
     )
+    res = []
     for volume_value in volume_values:
-        plot_error_rate_variance_by_frequency_comparison(
+        fig = plot_error_rate_variance_by_frequency_comparison(
             df_a,
             df_b,
             fixed_volume_gain_data=float(volume_value),
@@ -410,6 +416,8 @@ def plot_error_rate_variance_for_all_volume_gains_comparison(
             prefer_box_if_sparse=prefer_box_if_sparse,
             min_points_per_group=min_points_per_group,
         )
+        res.append(fig)
+    return res
 
 
 # 3D helpers
@@ -507,7 +515,7 @@ def _add_static_3d_panel(
     ax.set_title(panel_title)
     ax.set_xlabel("Frequency")
     ax.set_ylabel("Volume Gain Data")
-    ax.set_zlabel("Message", labelpad=18)
+    ax.set_zlabel("Message", labelpad=55)
     ax.set_zticks(list(range(len(message_order))))
     ax.set_zticklabels([shorten_message(message, 20) for message in message_order])
     ax.tick_params(axis="z", pad=30)
@@ -559,17 +567,17 @@ def plot_static_3d_interaction_comparison(
     df_b: DataFrame,
     label_a: str = "WhatsApp compression",
     label_b: str = "Best case",
-) -> None:
+) -> Figure:
     static_plot_df_a, static_message_order_a = _prepare_3d_plot_df(df_a)
     static_plot_df_b, static_message_order_b = _prepare_3d_plot_df(df_b)
     static_plot_df_a["static_marker_size"] = (
-        18 + static_plot_df_a["error_rate_clipped"] * 56
+        35 + static_plot_df_a["error_rate_clipped"] * 56
     )
     static_plot_df_b["static_marker_size"] = (
-        18 + static_plot_df_b["error_rate_clipped"] * 56
+        35 + static_plot_df_b["error_rate_clipped"] * 56
     )
 
-    static_fig = plt.figure(figsize=(20, 9))
+    static_fig = plt.figure(figsize=(24, 9))
     static_ax_a = static_fig.add_subplot(1, 2, 1, projection="3d")
     static_ax_b = static_fig.add_subplot(1, 2, 2, projection="3d")
 
@@ -587,7 +595,7 @@ def plot_static_3d_interaction_comparison(
     )
 
     static_fig.suptitle(
-        "3D Interaction Comparison: Frequency vs Data Volume vs Message (Static)",
+        "3D Interaction Comparison: Frequency vs Data Volume vs Message",
         y=0.96,
     )
 
@@ -605,6 +613,7 @@ def plot_static_3d_interaction_comparison(
         left=0.03, right=0.78, bottom=0.04, top=0.90, wspace=0.14
     )
     plt.show()
+    return static_fig
 
 
 def print_decode_status(df: pd.DataFrame):
