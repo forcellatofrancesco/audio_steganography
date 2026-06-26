@@ -513,12 +513,12 @@ def _add_static_3d_panel(
     )
 
     ax.set_title(panel_title)
-    ax.set_xlabel("Frequency")
-    ax.set_ylabel("Volume Gain Data")
-    ax.set_zlabel("Message", labelpad=55)
+    ax.set_xlabel("Frequency", labelpad=20)
+    ax.set_ylabel("Volume Gain Data", labelpad=20)
+    ax.set_zlabel("Message", labelpad=70)
     ax.set_zticks(list(range(len(message_order))))
     ax.set_zticklabels([shorten_message(message, 20) for message in message_order])
-    ax.tick_params(axis="z", pad=30)
+    ax.tick_params(axis="z", pad=40)
     ax.view_init(elev=22, azim=-60)
     return scatter
 

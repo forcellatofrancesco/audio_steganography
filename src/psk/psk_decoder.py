@@ -50,8 +50,8 @@ def decode_symbol_values_bpsk(
     phase = np.angle(baseband)
     # TODO: remove
     ###################################################################
-    # global out_phase
-    # out_phase = phase
+    global out_phase
+    out_phase = phase
     ###################################################################
     start_indices = np.arange(
         0, phase.size - samples_per_symbol + 1, samples_per_symbol
@@ -224,9 +224,9 @@ def convert_to_0_1(a: value_array) -> bit_array:
 
 
 # TODO: remove
-# out_trimmed_waveform = None
-# out_phase = None
-# out_expected = None
+out_trimmed_waveform = None
+out_phase = None
+out_expected = None
 
 
 def decode_from_audio(
@@ -257,8 +257,18 @@ def decode_from_audio(
 
     trimmed_waveform = np.asarray(waveform[start_index:], dtype=np.float64)
     ###################################################################
-    # global out_trimmed_waveform
-    # out_trimmed_waveform = trimmed_waveform
+    global out_trimmed_waveform
+    out_trimmed_waveform = trimmed_waveform
+
+    global out_expected
+    out_expected, _ = encode_to_audio(
+        "Hi!".encode("utf-8"),
+        preamble,
+        sample_rate,
+        frequency,
+        cycles_per_symbol,
+        algorithm,
+    )
     ###################################################################
     samples_per_symbol = max(1, int(round(sample_rate * cycles_per_symbol / frequency)))
     decoded_bits = np.array([], dtype=np.int8)

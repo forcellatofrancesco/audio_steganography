@@ -79,7 +79,7 @@ def main():
     total_rows = len(rows)
     last_printed = -1
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         decoded_rows = []
         for idx, result in enumerate(
             executor.map(

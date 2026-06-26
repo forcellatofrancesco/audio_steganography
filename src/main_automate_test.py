@@ -56,18 +56,19 @@ def _run_parameter_grid(
     #     "message": test_messages.messages,
     #     "cycles_per_symbol": [2, 5, 7],
     # }
-    param_grid = {
-        "frequency": [150, 200, 250],
-        "volume_gain_data": [0.25, 0.5, 0.75, 1.0],
-        "message": np.repeat(test_messages.messages, 10, axis=0),
-        "cycles_per_symbol": [2],
-    }
-    # TODO: this is just for the synthetic tests
     # param_grid = {
-    #     "frequency": list(itertools.repeat(250, 10)),
-    #     "volume_gain_data": [0.7],
-    #     "message": ["Hi!"],
+    #     "frequency": [150, 200, 250],
+    #     "volume_gain_data": [0.25, 0.5, 0.75, 1.0],
+    #     "message": np.repeat(test_messages.messages, 10, axis=0),
+    #     "cycles_per_symbol": [2],
     # }
+    # TODO: this is just for the synthetic tests
+    param_grid = {
+        "frequency": list(itertools.repeat(200, 1)),
+        "volume_gain_data": [0.7],
+        "message": [test_messages.messages[-1]],
+        "cycles_per_symbol": [7],
+    }
     keys = list(param_grid.keys())
     values = list(param_grid.values())
     total = sum(1 for _ in itertools.product(*values))
@@ -114,7 +115,9 @@ def _run_parameter_grid(
             if p > percentage + 1.0:
                 percentage = p
                 delta = datetime.datetime.now() - start_time
-                elapsed_seconds = delta.total_seconds()  # avoids .seconds truncation bug
+                elapsed_seconds = (
+                    delta.total_seconds()
+                )  # avoids .seconds truncation bug
                 time_left = elapsed_seconds * (100 - percentage) / percentage
                 print(f"Completed {algorithm}: {p}%, remaining time: {time_left}")
             try:
@@ -221,14 +224,14 @@ def main():
             print("The script will run DBPSK first and then BPSK in the same chat.")
 
             automation_runs = [
-                # (
-                #     "bpsk",
-                #     Path("output/260618_ultimate_bpsk.csv"),
-                # ),
                 (
-                    "dbpsk",
-                    Path("output/260619_ultimate_specific_dpsk.csv"),
+                    "bpsk",
+                    Path("output/clean_set_long.csv"),
                 ),
+                # (
+                #     "dbpsk",
+                #     Path("output/260619_ultimate_specific_dpsk.csv"),
+                # ),
             ]
 
             for algorithm, csv_output_path in automation_runs:
